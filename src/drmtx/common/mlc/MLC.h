@@ -35,6 +35,7 @@
 #include "../tables/TableMLC.h"
 #include "../tables/TableCarMap.h"
 #include "ConvEncoder.h"
+#include "LDPCEncoder.h"
 //#include "ViterbiDecoder.h"
 //#include "Metric.h"
 #include "BitInterleaver.h"
@@ -75,11 +76,13 @@ class CMLCEncoder : public CTransmitterModul<_BINARY, _COMPLEX>,
 					public CMLC
 {
 public:
-	CMLCEncoder() {}
+	CMLCEncoder() : bUseLDPC(false) {}
 	virtual ~CMLCEncoder() {}
 
 protected:
 	CConvEncoder		ConvEncoder[MC_MAX_NUM_LEVELS];
+	CLDPCEncoder		LDPCEncoder[MC_MAX_NUM_LEVELS];
+	bool				bUseLDPC;
 	/* Two different types of interleaver table */
 	CBitInterleaver		BitInterleaver[2];
 	CQAMMapping			QAMMapping;

@@ -24,7 +24,7 @@ INCLUDEPATH += config dispatch drmrx drmtx dsp editor logbook mainwidgets rig sc
 #QMAKE_LIBDIR += $$[QT_SYSROOT]/usr/local/lib
 
 CONFIG += link_pkgconfig
-PKGCONFIG += libopenjp2 fftw3 libpulse libpulse-simple hamlib
+PKGCONFIG += libopenjp2 libavif fftw3 libpulse libpulse-simple hamlib
 TARGET = qsstv
 macx {
  # Enable pkg-config (pkg-config is disabled by default in the Qt package for mac)
@@ -97,6 +97,7 @@ SOURCES += main.cpp\
     drmrx/psdmean.cpp \
     drmrx/sourcedecoder.cpp \
     drmrx/viterbi_decode.cpp \
+    drmrx/ldpc_decode.cpp \
     drmtx/common/datadecoding/DABMOT.cpp \
     drmtx/common/datadecoding/DataDecoder.cpp \
     drmtx/common/datadecoding/MOTSlideShow.cpp \
@@ -108,6 +109,7 @@ SOURCES += main.cpp\
     drmtx/common/mlc/BitInterleaver.cpp \
     drmtx/common/mlc/ChannelCode.cpp \
     drmtx/common/mlc/ConvEncoder.cpp \
+    drmtx/common/mlc/LDPCEncoder.cpp \
     drmtx/common/mlc/EnergyDispersal.cpp \
     drmtx/common/mlc/MLC.cpp \
     drmtx/common/mlc/QAMMapping.cpp \
@@ -185,6 +187,7 @@ SOURCES += main.cpp\
     editor/canvassizeform.cpp \
     utils/fftcalc.cpp \
     utils/jp2io.cpp \
+    utils/avifio.cpp \
     utils/color.cpp \
     widgets/testpatternselection.cpp \
     utils/filewatcher.cpp \
@@ -255,6 +258,7 @@ HEADERS  += mainwindow.h \
     drmrx/sourcedecoder.h \
     drmrx/structtemplates.h \
     drmrx/viterbi_decode.h \
+    drmrx/ldpc_decode.h \
     drmtx/common/datadecoding/DABMOT.h \
     drmtx/common/datadecoding/DataDecoder.h \
     drmtx/common/datadecoding/MOTSlideShow.h \
@@ -267,6 +271,8 @@ HEADERS  += mainwindow.h \
     drmtx/common/mlc/BitInterleaver.h \
     drmtx/common/mlc/ChannelCode.h \
     drmtx/common/mlc/ConvEncoder.h \
+    drmtx/common/mlc/LDPCEncoder.h \
+    drmtx/common/mlc/LDPCTables.h \
     drmtx/common/mlc/EnergyDispersal.h \
     drmtx/common/mlc/MLC.h \
     drmtx/common/mlc/QAMMapping.h \
@@ -356,6 +362,7 @@ HEADERS  += mainwindow.h \
     editor/canvassizeform.h \
     utils/fftcalc.h \
     utils/jp2io.h \
+    utils/avifio.h \
     utils/color.h \
     widgets/testpatternselection.h \
     utils/filewatcher.h \

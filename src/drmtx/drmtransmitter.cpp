@@ -111,6 +111,11 @@ void drmTransmitter::init(QByteArray *ba, QString name, QString format, drmTxPar
   Service.iLanguage=5;
   Service.strLabel=params.callsign.toLatin1().data();
   TransmParam->SetServiceParameters(0,Service);
+
+  /* LDPC/AVIF mode */
+  TransmParam->iFECMode = params.fecMode;
+  TransmParam->iLDPCRate = params.ldpcRate;
+
   DRMTransmitter->Init();
   // calculate transmision time
   duration=(double)(numTxFrames)*0.4*1.005; // 1.005 ->some extra time for buffers

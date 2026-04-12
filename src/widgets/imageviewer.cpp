@@ -26,6 +26,8 @@
 #include "dirdialog.h"
 #include "extviewer.h"
 #include "jp2io.h"
+#include "avifio.h"
+#include "drmparams.h"
 #include <configdialog.h>
 #include "drm.h"
 
@@ -125,6 +127,7 @@ bool imageViewer::openImage(QString &filename,QString start,bool ask,bool showMe
   QFileInfo finf(tempFilename);
 
   jp2IO jp2;
+  avifCodec avif;
   editorScene ed;
   bool success=false;
   cacheHit=false;
@@ -196,6 +199,14 @@ bool imageViewer::openImage(QString &filename,QString start,bool ask,bool showMe
                 {
                   success=true;
                 }
+            }
+        }
+      else if(avif.check(tempFilename))
+        {
+          tempImage=avif.decode(tempFilename);
+          if(!tempImage.isNull())
+            {
+              success=true;
             }
         }
       else if(tempImage.load(tempFilename))
@@ -828,6 +839,7 @@ bool imageViewer::copyToBuffer(QByteArray *ba)
   QImage im;
   QImage cvimg;
   jp2IO jp2;
+  avifCodec avif;
   int fileSize;
   cvimg=displayedImage.convertToFormat(QImage::Format_RGB32);
 #if (QT_VERSION < QT_VERSION_CHECK(5,10,0))
@@ -848,7 +860,10 @@ bool imageViewer::copyToBuffer(QByteArray *ba)
 
   if (compressedImageData.isEmpty())
     {
-      compressedImageData=jp2.encode(cvimg,im,fileSize,compressionRatio);
+      if (drmParams.fecMode == 1)
+        compressedImageData=avif.encode(cvimg,im,fileSize,compressionRatio);
+      else
+        compressedImageData=jp2.encode(cvimg,im,fileSize,compressionRatio);
     }
   *ba = compressedImageData;
   if (compressedImageData.isEmpty())
@@ -905,6 +920,7 @@ int imageViewer::applyTemplate()
   //  qDebug() << "applyTemplate";
   QImage *resultImage;
   jp2IO jp2;
+  avifCodec avif;
   QImage overlayedImage;
   int tWidth=targetWidth,tHeight=targetHeight;
   int compRatio;
@@ -1059,7 +1075,10 @@ int imageViewer::applyTemplate()
       // so the compression ratio is calculated for 3/4 of the image size
       // so its better to calculate the end result for 3/4 of the source imag
 
-      compressedImageData=jp2.encode(resultImage->convertToFormat(QImage::Format_RGB32),compressedImage,fileSize,compRatio);
+      if (drmParams.fecMode == 1)
+        compressedImageData=avif.encode(resultImage->convertToFormat(QImage::Format_RGB32),compressedImage,fileSize,compRatio);
+      else
+        compressedImageData=jp2.encode(resultImage->convertToFormat(QImage::Format_RGB32),compressedImage,fileSize,compRatio);
       //#ifdef IMAGETESTVIEWER
       //      imageTestViewer(&compressedImage,"compressedImage");
       //#endif

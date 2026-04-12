@@ -16,6 +16,8 @@ struct drmTxParams
   int protection;
   QString callsign;
   int reedSolomon;
+  int fecMode;      // 0=legacy(Viterbi+JP2), 1=new(LDPC+AVIF)
+  int ldpcRate;     // 0=1/2, 1=2/3, 2=3/4, 3=5/6
 };
 
 

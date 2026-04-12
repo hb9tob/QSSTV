@@ -128,9 +128,17 @@ void CMLCEncoder::ProcessDataInternal(CParameter&)
 	}
 
 
-	/* Convolutional encoder ------------------------------------------------ */
-	for (j = 0; j < iLevels; j++)
-		ConvEncoder[j].Encode(vecEncInBuffer[j], vecEncOutBuffer[j]);
+	/* Channel encoder ------------------------------------------------------ */
+	if (bUseLDPC)
+	{
+		for (j = 0; j < iLevels; j++)
+			LDPCEncoder[j].Encode(vecEncInBuffer[j], vecEncOutBuffer[j]);
+	}
+	else
+	{
+		for (j = 0; j < iLevels; j++)
+			ConvEncoder[j].Encode(vecEncInBuffer[j], vecEncOutBuffer[j]);
+	}
 
 
 	/* Bit interleaver ------------------------------------------------------ */
@@ -153,10 +161,11 @@ void CMLCEncoder::InitInternal(CParameter& TransmParam)
 	int i;
 	int	iNumInBits;
 
-	TransmParam.Lock(); 
+	TransmParam.Lock();
+	bUseLDPC = (eChannelType == CT_MSC) && (TransmParam.iFECMode == 1);
 	CalculateParam(TransmParam, eChannelType);
-	TransmParam.Unlock(); 
-	
+	TransmParam.Unlock();
+
 	iNumInBits = iL[0] + iL[1] + iL[2];
 
 
@@ -165,9 +174,18 @@ void CMLCEncoder::InitInternal(CParameter& TransmParam)
 	EnergyDisp.Init(iNumInBits, iL[2]);
 
 	/* Encoder */
-	for (i = 0; i < iLevels; i++)
-		ConvEncoder[i].Init(eCodingScheme, eChannelType, iN[0], iN[1],
-			iM[i][0], iM[i][1], iCodeRate[i][0], iCodeRate[i][1], i);
+	if (bUseLDPC)
+	{
+		for (i = 0; i < iLevels; i++)
+			LDPCEncoder[i].Init(TransmParam.iLDPCRate,
+				iM[i][0] + iM[i][1], iNumEncBits);
+	}
+	else
+	{
+		for (i = 0; i < iLevels; i++)
+			ConvEncoder[i].Init(eCodingScheme, eChannelType, iN[0], iN[1],
+				iM[i][0], iM[i][1], iCodeRate[i][0], iCodeRate[i][1], i);
+	}
 
 	/* Bit interleaver */
 	/* First init all possible interleaver (According table "TableMLC.h" ->
@@ -288,7 +306,7 @@ void CMLC::CalculateParam(CParameter& Parameter, int iNewChannelType)
 
 			/* Protection Level B */
 			iCodeRate[0][1] = iCodRateCombMSC4SM;
-			
+
 			/* Define interleaver sequence for all levels */
 			piInterlSequ = iInterlSequ4SM;
 			iNumEncBits = iN_mux * 2;
@@ -300,10 +318,25 @@ void CMLC::CalculateParam(CParameter& Parameter, int iNewChannelType)
 			/* iM: Number of bits each level ------------------------------------ */
 			iM[0][0] = 0;
 
-			/* M_p,2 = RX_p * floor((2 * N_2 - 12) / RY_p) */
-			iM[0][1] = iPuncturingPatterns[iCodRateCombMSC4SM][0] *
-				(int) ((_REAL) (2 * iN_mux - 12) /
-				iPuncturingPatterns[iCodRateCombMSC4SM][1]);
+			if (Parameter.iFECMode == 1)
+			{
+				/* LDPC mode: info bits = coded bits * code_rate
+				   No tail bits needed (unlike convolutional code).
+				   LDPC rate: 0=1/2, 1=2/3, 2=3/4, 3=5/6 */
+				static const int rateNum[] = {1, 2, 3, 5};
+				static const int rateDen[] = {2, 3, 4, 6};
+				int rIdx = Parameter.iLDPCRate;
+				if (rIdx < 0) rIdx = 0;
+				if (rIdx > 3) rIdx = 3;
+				iM[0][1] = (iNumEncBits * rateNum[rIdx]) / rateDen[rIdx];
+			}
+			else
+			{
+				/* M_p,2 = RX_p * floor((2 * N_2 - 12) / RY_p) */
+				iM[0][1] = iPuncturingPatterns[iCodRateCombMSC4SM][0] *
+					(int) ((_REAL) (2 * iN_mux - 12) /
+					iPuncturingPatterns[iCodRateCombMSC4SM][1]);
+			}
 
 			/* iL: Number of bits each protection level ------------------------- */
 			/* Higher protected part */

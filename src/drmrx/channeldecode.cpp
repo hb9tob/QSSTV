@@ -74,6 +74,11 @@ int msc_mode_new;
 int interleaver_depth_new;
 bool callsignValid;
 
+/* LDPC/AVIF mode flags (decoded from FAC) */
+int ldpc_mode_flag = 0;    /* 0=Viterbi, 1=LDPC */
+int ldpc_rate_index = 0;   /* 0=1/2, 1=2/3, 2=3/4, 3=5/6 */
+int avif_mode_flag = 0;    /* 0=JP2, 1=AVIF */
+
 char getfacchar(double *);
 
 void channel_decoding(void)
@@ -418,12 +423,18 @@ void channel_decoding(void)
     }
   identityCount++;
   audio_data_flag = (int) channel_parameters[6];
+
+  /* LDPC/AVIF mode flags from FAC bits 10-13 */
+  ldpc_mode_flag = (int) fac_data[10];
+  ldpc_rate_index = (int) fac_data[11] + 2 * (int) fac_data[12];
+  avif_mode_flag = (int) fac_data[13];
+
   // we need 3 consequetive valid fac's to have a complete call
 
-  /* decoding of text in fac data */
-  localDrmCallsign[3*identity]   = getfacchar(&facblock[10]);
-  localDrmCallsign[3*identity+1] = getfacchar(&facblock[17]);
-  localDrmCallsign[3*identity+2] = getfacchar(&facblock[24]);
+  /* decoding of text in fac data (shifted by 4 bits for LDPC/AVIF flags) */
+  localDrmCallsign[3*identity]   = getfacchar(&facblock[14]);
+  localDrmCallsign[3*identity+1] = getfacchar(&facblock[21]);
+  localDrmCallsign[3*identity+2] = getfacchar(&facblock[28]);
   localDrmCallsign[3*identity+3] = '\0';
   if ((identity == 2) && (identityCount>=3))
     {

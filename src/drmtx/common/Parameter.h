@@ -1008,6 +1008,9 @@ class CParameter
 	ECodScheme eMSCCodingScheme;	/* MSC coding scheme */
 	ECodScheme eSDCCodingScheme;	/* SDC coding scheme */
 
+	int iFECMode;    /* 0=legacy (Viterbi), 1=LDPC */
+	int iLDPCRate;   /* 0=1/2, 1=2/3, 2=3/4, 3=5/6 */
+
 	size_t iNumAudioService;
 	size_t iNumDataService;
 

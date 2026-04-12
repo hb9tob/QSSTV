@@ -21,7 +21,12 @@
 #include <string.h>
 
 /* #include "viterbi_decode.h" */
+#include "ldpc_decode.h"
 #include "msd_hard_sdc.h"
+
+/* LDPC mode flags (set by channeldecode.cpp from FAC) */
+extern int ldpc_mode_flag;
+extern int ldpc_rate_index;
 
 #define ITER_BREAK
 #define CONSIDERING_SNR
@@ -417,23 +422,33 @@ int msdhardmsc(double *received_real, double *received_imag, int Lrxdata,
 	     printf("tailpuncturing[... ] = %p\n", tailpuncturing[rp[level]]);
 	     for (i=0; i < 13 ; i++)
 	     printf("inhoud is %d ", tailpuncturing[rp[level]][i]);  */
-	  error = viterbi_decode(llr, (2 - HMmix) * N,
-				 (level
-				  || (!HMsym
-				      && (n
-					  || !HMmix))) * (2 - HMmix) * N1,
-				 puncturing[(int) PL1[level]],
-				 puncturing[(int) PL2[level]],
-				 tailpuncturing[rp[level]],
-				 infoout[level] + n * ((int) L1_real[level] +
-						       (int) L2_real[level] +
-						       6), hardpoints_ptr,
-				 level,
-				 Deinterleaver + (2 - HMmix) * N * level,
-				 (int) L1[level] + (int) L2[level] + 6,
-				 rp[level] + 12, viterbi_mem);
+	  if (ldpc_mode_flag)
+	    {
+	      error = ldpc_decode(llr, (2 - HMmix) * N, ldpc_rate_index,
+				  infoout[level] + n * ((int) L1_real[level] +
+							(int) L2_real[level]),
+				  50);
+	    }
+	  else
+	    {
+	      error = viterbi_decode(llr, (2 - HMmix) * N,
+				     (level
+				      || (!HMsym
+					  && (n
+					      || !HMmix))) * (2 - HMmix) * N1,
+				     puncturing[(int) PL1[level]],
+				     puncturing[(int) PL2[level]],
+				     tailpuncturing[rp[level]],
+				     infoout[level] + n * ((int) L1_real[level] +
+							   (int) L2_real[level] +
+							   6), hardpoints_ptr,
+				     level,
+				     Deinterleaver + (2 - HMmix) * N * level,
+				     (int) L1[level] + (int) L2[level] + 6,
+				     rp[level] + 12, viterbi_mem);
+	    }
 
-	  /* debugging pa0mbo  
+	  /* debugging pa0mbo
 	     printf("=== na eerste viterbi \n");
 	     for (i=0; i < 2*N ; i++)
 	     {
@@ -520,27 +535,38 @@ int msdhardmsc(double *received_real, double *received_imag, int Lrxdata,
 
 	      /* printf("Tweede viterbi PL1[0] %g PL2[0] %g L1[0] %g L2[0] %g L1_real[0] %g L2_real[0] %g rp[0] %d\n",
 	         PL1[0], PL2[0], L1[0], L2[0], L1_real[0], L2_real[0], rp[0]);   */
-	      error = viterbi_decode(llr,
-				     (2 - HMmix) * N,
-				     (level
-				      || (!HMsym
-					  && (n
-					      || !HMmix))) * (2 - HMmix) * N1,
-				     puncturing[(int) PL1[level]],
-				     puncturing[(int) PL2[level]],
-				     tailpuncturing[rp[level]],
-				     infoout[level] +
-				     n * ((int) L1_real[level] +
-					  (int) L2_real[level] + 6),
-				     hardpoints_ptr, level,
-				     Deinterleaver + (2 - HMmix) * N * level,
-				     (int) L1[level] + (int) L2[level] + 6,
-				     rp[level] + 12, viterbi_mem);
+	      if (ldpc_mode_flag)
+		{
+		  error = ldpc_decode(llr, (2 - HMmix) * N, ldpc_rate_index,
+				      infoout[level] +
+				      n * ((int) L1_real[level] +
+					   (int) L2_real[level]),
+				      50);
+		}
+	      else
+		{
+		  error = viterbi_decode(llr,
+					 (2 - HMmix) * N,
+					 (level
+					  || (!HMsym
+					      && (n
+						  || !HMmix))) * (2 - HMmix) * N1,
+					 puncturing[(int) PL1[level]],
+					 puncturing[(int) PL2[level]],
+					 tailpuncturing[rp[level]],
+					 infoout[level] +
+					 n * ((int) L1_real[level] +
+					      (int) L2_real[level] + 6),
+					 hardpoints_ptr, level,
+					 Deinterleaver + (2 - HMmix) * N * level,
+					 (int) L1[level] + (int) L2[level] + 6,
+					 rp[level] + 12, viterbi_mem);
+		}
 	      if (error)
 
 		{
 		  free(memory_ptr);
-		  printf("msdhardmsc: Error in Viterbi decoder");
+		  printf("msdhardmsc: Error in channel decoder");
 		  return 1;
 		}
 
