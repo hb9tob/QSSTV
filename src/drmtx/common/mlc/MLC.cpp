@@ -192,8 +192,10 @@ void CMLCEncoder::InitInternal(CParameter& TransmParam)
 			iTotalInfoBits += iM[i][0] + iM[i][1];
 		iTotalCodedBits = iLevels * iNumEncBits;
 
-		/* Compute z so that n = iTotalCodedBits */
-		iLDPCz = iTotalCodedBits / LDPC_BASE_COLS;
+		/* Compute z: round UP so n >= iTotalCodedBits.
+		   Any excess (n - iTotalCodedBits) is handled as extra parity
+		   that simply isn't transmitted (minimal puncturing). */
+		iLDPCz = (iTotalCodedBits + LDPC_BASE_COLS - 1) / LDPC_BASE_COLS;
 		if (iLDPCz < 1) iLDPCz = 1;
 
 		BICMEncoder.Init(TransmParam.iLDPCRate, iLDPCz, iTotalInfoBits);
