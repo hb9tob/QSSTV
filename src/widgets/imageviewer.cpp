@@ -994,21 +994,35 @@ int imageViewer::applyTemplate()
       addToLog(QString("No Template, targetW,H=%1,%2").arg(targetWidth).arg(targetHeight), LOGIMAG);
       if(tWidth!=0 && tHeight!=0)
         {
-          QImage scaledImage = QImage(sourceImage
+          if (drmParams.fecMode == 1)
+            {
+              // AVIF mode: scale to fit within target, keep aspect ratio, no crop
+              displayedImage = QImage(sourceImage
                                       .scaled(tWidth,
                                               tHeight,
-                                              aspectRatioMode,
+                                              Qt::KeepAspectRatio,
                                               Qt::SmoothTransformation
                                               )
                                       );
-          // Crop to intended dimensions at the centre of the image
-          displayedImage = QImage(scaledImage
-                                  .copy((scaledImage.width()-tWidth)/2,
-                                        (scaledImage.height()-tHeight)/2,
-                                        tWidth,
-                                        tHeight
-                                        )
-                                  );
+            }
+          else
+            {
+              QImage scaledImage = QImage(sourceImage
+                                          .scaled(tWidth,
+                                                  tHeight,
+                                                  aspectRatioMode,
+                                                  Qt::SmoothTransformation
+                                                  )
+                                          );
+              // Crop to intended dimensions at the centre of the image
+              displayedImage = QImage(scaledImage
+                                      .copy((scaledImage.width()-tWidth)/2,
+                                            (scaledImage.height()-tHeight)/2,
+                                            tWidth,
+                                            tHeight
+                                            )
+                                      );
+            }
 
 
         }
@@ -1049,21 +1063,25 @@ int imageViewer::applyTemplate()
                    LOGIMAG);
           if(tWidth!=0 && tHeight!=0)
             {
-              QImage scaledImage = QImage(sourceImage
-                                          .scaled(tWidth,
-                                                  tHeight,
-                                                  aspectRatioMode,
-                                                  Qt::SmoothTransformation
-                                                  )
-                                          );
+              QImage scaledImage;
+              if (drmParams.fecMode == 1)
+                {
+                  // AVIF mode: keep aspect ratio, no crop
+                  scaledImage = sourceImage.scaled(tWidth, tHeight,
+                                                   Qt::KeepAspectRatio,
+                                                   Qt::SmoothTransformation);
+                }
+              else
+                {
+                  scaledImage = sourceImage.scaled(tWidth, tHeight,
+                                                   aspectRatioMode,
+                                                   Qt::SmoothTransformation);
+                  scaledImage = scaledImage.copy((scaledImage.width()-tWidth)/2,
+                                                 (scaledImage.height()-tHeight)/2,
+                                                 tWidth, tHeight);
+                }
               scaledImage=scaledImage.convertToFormat(QImage::Format_ARGB32);
-              overlayedImage= QImage(scaledImage
-                                     .copy((scaledImage.width()-tWidth)/2,
-                                           (scaledImage.height()-tHeight)/2,
-                                           tWidth,
-                                           tHeight
-                                           )
-                                     );
+              overlayedImage=scaledImage;
               tscene.overlay(&overlayedImage);
             }
           else
