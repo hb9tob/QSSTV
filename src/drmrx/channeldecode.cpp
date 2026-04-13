@@ -78,6 +78,7 @@ bool callsignValid;
 int ldpc_mode_flag = 0;    /* 0=Viterbi, 1=LDPC */
 int ldpc_rate_index = 0;   /* 0=1/2, 1=2/3, 2=3/4, 3=5/6 */
 int avif_mode_flag = 0;    /* 0=JP2, 1=AVIF */
+int drm_frame_index = 0;   /* 1..6 position within 2-superframe LDPC block */
 
 char getfacchar(double *);
 
@@ -320,6 +321,7 @@ void channel_decoding(void)
 
     {
       frame_index = (frame_index % 6) + 1;
+      drm_frame_index = frame_index; /* expose to msdhardmsc for LDPC sync */
 
       /* in matlab check for existence of symbol_period & symbols_per_frame */
       if ((symbol_period != -1) & (symbols_per_frame != -1))

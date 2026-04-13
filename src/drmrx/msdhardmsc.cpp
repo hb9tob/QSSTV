@@ -31,8 +31,9 @@ extern int ldpc_rate_index;
 
 /* 6-frame LDPC accumulation state */
 static float bicm_llr_accum[120000]; /* LLRs accumulated across 6 frames (max ~19000 bits) */
-static int ldpc_frame_count = 0;
-static int ldpc_coded_per_frame = 0;
+
+/* Frame position within 6-frame LDPC block (set from channeldecode frame_index) */
+extern int drm_frame_index; /* 1..6, set by channeldecode.cpp */
 
 #define ITER_BREAK
 #define CONSIDERING_SNR
@@ -483,56 +484,61 @@ int msdhardmsc(double *received_real, double *received_imag, int Lrxdata,
 	  int n_coded = (2 - HMmix) * N;
 	  int this_frame_coded = no_of_levels * n_coded;
 
-	  /* Copy this frame's LLRs into accumulator */
-	  ldpc_coded_per_frame = this_frame_coded;
-	  int accum_offset = ldpc_frame_count * this_frame_coded;
+	  /* Copy this frame's LLRs into accumulator.
+	     Position within 6-frame block from DRM frame_index (1..6) */
+	  int ldpc_pos = drm_frame_index - 1; /* 0..5 */
+	  int accum_offset = ldpc_pos * this_frame_coded;
 	  for (sample_index = 0; sample_index < this_frame_coded; sample_index++)
 	    bicm_llr_accum[accum_offset + sample_index] = bicm_llr[sample_index];
 
-	  ldpc_frame_count++;
-
-	  if (ldpc_frame_count >= 6)
+	  if (ldpc_pos == 5) /* last frame of 6-frame block */
 	    {
-	      /* All 6 frames collected — decode the big LDPC block */
+	      /* All 6 frames collected — decode N blocks of z=81 (n=1944).
+		 Layout: [PRBS filler | block0 | block1 | ...] */
 	      int total_coded_6f = 6 * this_frame_coded;
+	      int ldpc_z = 81;
+	      int ldpc_n = ldpc_n_from_z(ldpc_z); /* 1944 */
+	      int ldpc_k = ldpc_k_from_z(ldpc_z, ldpc_rate_index);
+	      int num_blocks = total_coded_6f / ldpc_n;
+	      int filler_bits = total_coded_6f - num_blocks * ldpc_n;
+
+	      static char bicm_info[60000];
+	      int info_idx = 0;
+
+	      for (int blk = 0; blk < num_blocks; blk++)
+		{
+		  float *block_llr = bicm_llr_accum + filler_bits + blk * ldpc_n;
+		  char block_info[1944];
+		  ldpc_decode(block_llr, ldpc_n, ldpc_rate_index, ldpc_z,
+			      block_info, 50, ldpc_k);
+		  for (int bi = 0; bi < ldpc_k && info_idx < 60000; bi++)
+		    bicm_info[info_idx++] = block_info[bi];
+		}
+
+	      /* Output the LAST frame's portion of decoded info bits */
 	      int total_info_per_frame = 0;
 	      for (level = 0; level < no_of_levels; level++)
 		total_info_per_frame += (int) L1_real[level] + (int) L2_real[level];
-	      int total_info_6f = 6 * total_info_per_frame;
 
-	      int ldpc_z = total_coded_6f / LDPC_BASE_COLS;
-	      if (ldpc_z < 1) ldpc_z = 1;
-
-	      static char bicm_info[60000]; /* 6 frames worth of info bits */
-	      error = ldpc_decode(bicm_llr_accum, total_coded_6f, ldpc_rate_index,
-				  ldpc_z, bicm_info, 50, total_info_6f);
-
-	      /* Distribute decoded info bits: last frame's infoout gets the
-		 last frame's portion. Source decoder processes frame by frame,
-		 so we output ALL 6 frames worth into the output now.
-		 The source decoder will receive a burst of 6 frames of data. */
-	      int info_idx = 5 * total_info_per_frame; /* last frame's info */
+	      int out_idx = 5 * total_info_per_frame;
 	      for (level = 0; level < no_of_levels; level++)
 		{
 		  int info_bits = (int) L1_real[level] + (int) L2_real[level];
 		  for (sample_index = 0; sample_index < info_bits; sample_index++)
-		    infoout[level][sample_index] = bicm_info[info_idx++];
+		    infoout[level][sample_index] = bicm_info[out_idx++];
 		}
 
-	      ldpc_frame_count = 0;
 	    }
 	  else
 	    {
-	      /* Not yet 6 frames — zero out infoout, return 0 decoded bits */
+	      /* Intermediate frame: zero infoout but DON'T return early.
+		 Let the rest of msdhardmsc run for proper state updates. */
 	      for (level = 0; level < no_of_levels; level++)
 		{
 		  int info_bits = (int) L1_real[level] + (int) L2_real[level];
 		  for (sample_index = 0; sample_index < info_bits; sample_index++)
 		    infoout[level][sample_index] = 0;
 		}
-	      /* Signal no data by clearing output — channeldecode will skip */
-	      free(memory_ptr);
-	      return 0;
 	    }
 	}
       PL1 = PL1_imag;

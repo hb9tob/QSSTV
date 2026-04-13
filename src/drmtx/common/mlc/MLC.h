@@ -77,7 +77,8 @@ class CMLCEncoder : public CTransmitterModul<_BINARY, _COMPLEX>,
 {
 public:
 	CMLCEncoder() : bUseLDPC(false), iLDPCFrameCount(0),
-					iLDPCTotalFrames(0), iLDPCz(0) {}
+					iLDPCTotalFrames(0), iLDPCz(81),
+					iLDPCNumBlocks(0), iLDPCFillerBits(0) {}
 	virtual ~CMLCEncoder() {}
 
 protected:
@@ -90,7 +91,9 @@ protected:
 	int					iCodedBitsPerFrame;/* coded bits per single frame */
 	int					iLDPCFrameCount;   /* current frame within interleaver period */
 	int					iLDPCTotalFrames;  /* frames per interleaver period (6 or 2) */
-	int					iLDPCz;            /* expansion factor */
+	int					iLDPCz;            /* expansion factor (81 for WiFi) */
+	int					iLDPCNumBlocks;    /* number of n=1944 blocks per 6 frames */
+	int					iLDPCFillerBits;   /* PRBS filler bits (low-freq subcarriers) */
 	/* Multi-frame LDPC buffers */
 	CVector<_DECISION>	vecLDPCInfoAccum;  /* accumulated info bits across frames */
 	CVector<_DECISION>	vecLDPCCodedAll;   /* all coded bits from single LDPC encode */
