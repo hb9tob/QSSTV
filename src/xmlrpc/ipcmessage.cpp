@@ -3,16 +3,13 @@
 #include <QDebug>
 #include "appglobal.h"
 
-
+#ifndef Q_OS_WIN
 #include<string.h>
 #include<time.h>
 #include<sys/ipc.h>
 #include<sys/msg.h>
 #include<sys/wait.h>
 #include<sys/errno.h>
-
-
-//extern int errno;       // error NO.
 
 
 ipcMessage::ipcMessage(int messageKey)
@@ -78,3 +75,34 @@ bool ipcMessage::closeQueue()
     }
   return 0;
 }
+
+#else // Q_OS_WIN - System V IPC not available
+
+ipcMessage::ipcMessage(int messageKey)
+{
+  key=messageKey;
+  messageQId=-1;
+  rc=0;
+  done=0;
+}
+
+ipcMessage::~ipcMessage()
+{
+}
+
+bool ipcMessage::sendMessage(QString)
+{
+  return false;
+}
+
+bool ipcMessage::receiveMessage(QString &)
+{
+  return false;
+}
+
+bool ipcMessage::closeQueue()
+{
+  return false;
+}
+
+#endif // Q_OS_WIN

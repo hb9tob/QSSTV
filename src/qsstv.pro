@@ -27,7 +27,7 @@ TARGET = qsstv
 
 win32 {
   CONFIG += link_pkgconfig
-  PKGCONFIG += libopenjp2 libavif fftw3 portaudio-2 hamlib
+  PKGCONFIG += libopenjp2 libavif fftw3 portaudio-2.0 hamlib
 }
 else {
   CONFIG += link_pkgconfig
@@ -53,7 +53,6 @@ SOURCES += main.cpp\
     config/directoriesconfig.cpp \
     config/configdialog.cpp \
     sound/soundbase.cpp \
-    sound/soundpulse.cpp \
     widgets/spectrumwidget.cpp \
     widgets/vumeter.cpp \
     widgets/fftdisplay.cpp \
@@ -203,6 +202,8 @@ SOURCES += main.cpp\
     editor/basegraphicitem.cpp \
     editor/templateviewer.cpp
 
+unix: SOURCES += sound/soundpulse.cpp
+
 unix:!macx: SOURCES += sound/soundalsa.cpp \
     videocapt/cameradialog.cpp \
     videocapt/imagesettings.cpp \
@@ -227,7 +228,6 @@ HEADERS  += mainwindow.h \
     appdefs.h \
     config/configdialog.h \
     sound/soundbase.h \
-    sound/soundpulse.h \
     widgets/spectrumwidget.h \
     widgets/vumeter.h \
     widgets/fftdisplay.h \
@@ -380,6 +380,8 @@ HEADERS  += mainwindow.h \
     utils/ftpfunctions.h \
     editor/basegraphicitem.h \
     editor/templateviewer.h
+
+unix: HEADERS += sound/soundpulse.h
 
 unix:!macx: HEADERS +=  sound/soundalsa.h \
     videocapt/cameradialog.h \

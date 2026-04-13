@@ -13,7 +13,9 @@
 
 #include "ui_freqform.h"
 #include "ui_sweepform.h"
+#if !defined(Q_OS_WIN) && !defined(Q_OS_MAC)
 #include "cameradialog.h"
+#endif
 #include "soundbase.h"
 #include "waterfallform.h"
 #include "bsrform.h"
@@ -695,7 +697,7 @@ void txWidget::slotResizeChanged(int i)
 
 void txWidget::slotSnapshot()
 {
-#ifndef __APPLE__
+#if !defined(Q_OS_WIN) && !defined(Q_OS_MAC) && !defined(__APPLE__)
   QImage *im;
   cameraDialog camera;
   if(camera.exec()==QDialog::Accepted)
@@ -711,7 +713,7 @@ void txWidget::slotSnapshot()
           galleryWidgetPtr->txStockImageChanged();
         }
     }
-#endif // __APPLE__
+#endif
 }
 
 
