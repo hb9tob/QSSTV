@@ -1275,6 +1275,50 @@
            </item>
           </widget>
          </item>
+         <item row="4" column="0">
+          <widget class="QLabel" name="drmResolutionLabel">
+           <property name="text">
+            <string>Res</string>
+           </property>
+           <property name="alignment">
+            <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+           </property>
+          </widget>
+         </item>
+         <item row="4" column="1" colspan="5">
+          <widget class="QComboBox" name="drmTxResolutionComboBox">
+           <item>
+            <property name="text">
+             <string>Auto</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>Original</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>1920x1080</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>1280x720</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>640x480</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>320x240</string>
+            </property>
+           </item>
+          </widget>
+         </item>
         </layout>
        </widget>
       </widget>

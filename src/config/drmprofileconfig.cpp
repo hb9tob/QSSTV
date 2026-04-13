@@ -55,6 +55,7 @@ void drmProfileConfig::readSettings()
   drmPFArray[0].params.reedSolomon=qSettings.value("drmPF1ReedSolomon",0).toInt();
   drmPFArray[0].params.fecMode=qSettings.value("drmPF1FECMode",0).toInt();
   drmPFArray[0].params.ldpcRate=qSettings.value("drmPF1LDPCRate",0).toInt();
+  drmPFArray[0].params.resolution=qSettings.value("drmPF1Resolution",0).toInt();
 
   drmPFArray[1].name=qSettings.value ("drmPF2Name","Profile 2").toString();
   drmPFArray[1].params.robMode=qSettings.value ("drmPF2Mode",0).toInt();
@@ -65,6 +66,7 @@ void drmProfileConfig::readSettings()
   drmPFArray[1].params.reedSolomon=qSettings.value("drmPF2ReedSolomon",0).toInt();
   drmPFArray[1].params.fecMode=qSettings.value("drmPF2FECMode",0).toInt();
   drmPFArray[1].params.ldpcRate=qSettings.value("drmPF2LDPCRate",0).toInt();
+  drmPFArray[1].params.resolution=qSettings.value("drmPF2Resolution",0).toInt();
 
   drmPFArray[2].name=qSettings.value ("drmPF3Name","Profile 3").toString();
   drmPFArray[2].params.robMode=qSettings.value ("drmPF3Mode",0).toInt();
@@ -75,6 +77,7 @@ void drmProfileConfig::readSettings()
   drmPFArray[2].params.reedSolomon=qSettings.value("drmPF3ReedSolomon",0).toInt();
   drmPFArray[2].params.fecMode=qSettings.value("drmPF3FECMode",0).toInt();
   drmPFArray[2].params.ldpcRate=qSettings.value("drmPF3LDPCRate",0).toInt();
+  drmPFArray[2].params.resolution=qSettings.value("drmPF3Resolution",0).toInt();
   qSettings.endGroup();
   setParams();
 
@@ -94,6 +97,7 @@ void drmProfileConfig::writeSettings()
   qSettings.setValue("drmPF1ReedSolomon",drmPFArray[0].params.reedSolomon);
   qSettings.setValue("drmPF1FECMode",drmPFArray[0].params.fecMode);
   qSettings.setValue("drmPF1LDPCRate",drmPFArray[0].params.ldpcRate);
+  qSettings.setValue("drmPF1Resolution",drmPFArray[0].params.resolution);
   qSettings.setValue ("drmPF2Name",drmPFArray[1].name);
   qSettings.setValue ("drmPF2Mode",drmPFArray[1].params.robMode);
   qSettings.setValue("drmPF2QAM",drmPFArray[1].params.qam);
@@ -103,6 +107,7 @@ void drmProfileConfig::writeSettings()
   qSettings.setValue("drmPF2ReedSolomon",drmPFArray[1].params.reedSolomon);
   qSettings.setValue("drmPF2FECMode",drmPFArray[1].params.fecMode);
   qSettings.setValue("drmPF2LDPCRate",drmPFArray[1].params.ldpcRate);
+  qSettings.setValue("drmPF2Resolution",drmPFArray[1].params.resolution);
 
   qSettings.setValue ("drmPF3Name",drmPFArray[2].name);
   qSettings.setValue ("drmPF3Mode",drmPFArray[2].params.robMode);
@@ -113,6 +118,7 @@ void drmProfileConfig::writeSettings()
   qSettings.setValue("drmPF3ReedSolomon",drmPFArray[2].params.reedSolomon);
   qSettings.setValue("drmPF3FECMode",drmPFArray[2].params.fecMode);
   qSettings.setValue("drmPF3LDPCRate",drmPFArray[2].params.ldpcRate);
+  qSettings.setValue("drmPF3Resolution",drmPFArray[2].params.resolution);
   qSettings.endGroup();
 }
 
@@ -175,7 +181,8 @@ bool drmProfileConfig::diff(sprofile a,sprofile b)
       || a.params.interleaver!=b.params.interleaver
       || a.params.reedSolomon!=b.params.reedSolomon
       || a.params.fecMode!=b.params.fecMode
-      || a.params.ldpcRate!=b.params.ldpcRate);
+      || a.params.ldpcRate!=b.params.ldpcRate
+      || a.params.resolution!=b.params.resolution);
 
 }
 

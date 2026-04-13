@@ -944,32 +944,48 @@ int imageViewer::applyTemplate()
 #else
   compRatio=((sourceImage.convertToFormat(QImage::Format_RGB32).sizeInBytes()*3)/4)/compressSize; // first estimate without template
 #endif
-  if (tWidth==0 && tHeight==0 && useCompression && (sourceImage.width()>1000 || sourceImage.height()>1000))
+  if (tWidth==0 && tHeight==0 && useCompression)
     {
-      // if this is going DRM, and its not already a small image
-      // and the size slider is set for smaller sizes
-      // we can pre-scale the image to smaller dimensions to
-      // improve the compression speed
-      // Changing the ratio makes the slider work consistently
-      // About every 50 is where the compression ratio stops
-      // making much difference to the size. It's also the point where
-      // you are losing significant detail due to compression anyway.
-      addToLog(QString("CompressionRatio=%1").arg(compRatio),LOGIMAG);
-      if (compRatio > 150) {
-
-          tWidth =sourceImage.width() / 4;
-          tHeight=sourceImage.height() / 4;
-          //          compRatio = ((compRatio - 151) * 3) + 45;
+      if (drmParams.fecMode == 1)
+        {
+          // LDPC+AVIF mode: use selected resolution
+          // 0=auto, 1=original, 2=1920x1080, 3=1280x720, 4=640x480, 5=320x240
+          static const int resW[] = {0, 0, 1920, 1280, 640, 320};
+          static const int resH[] = {0, 0, 1080,  720, 480, 240};
+          int ri = drmParams.resolution;
+          if (ri >= 2 && ri <= 5)
+            {
+              tWidth = resW[ri];
+              tHeight = resH[ri];
+            }
+          else if (ri == 0)
+            {
+              // Auto: scale down only if image is very large (>1920)
+              if (sourceImage.width() > 1920 || sourceImage.height() > 1080)
+                {
+                  tWidth = 1920;
+                  tHeight = 1080;
+                }
+              // else: keep original
+            }
+          // ri==1 (Original): tWidth/tHeight stay 0 -> no scaling
         }
-      else if (compRatio > 100) {
-          tWidth =sourceImage.width() / 3;
-          tHeight=sourceImage.height() / 3;
-          //          compRatio -= 73;
-        }
-      else if (compRatio > 50) {
-          tWidth =sourceImage.width() / 2;
-          tHeight=sourceImage.height() / 2;
-          //          compRatio -= 38;
+      else if (sourceImage.width()>1000 || sourceImage.height()>1000)
+        {
+          // Legacy mode: pre-scale large images to improve JP2 compression speed
+          addToLog(QString("CompressionRatio=%1").arg(compRatio),LOGIMAG);
+          if (compRatio > 150) {
+              tWidth =sourceImage.width() / 4;
+              tHeight=sourceImage.height() / 4;
+            }
+          else if (compRatio > 100) {
+              tWidth =sourceImage.width() / 3;
+              tHeight=sourceImage.height() / 3;
+            }
+          else if (compRatio > 50) {
+              tWidth =sourceImage.width() / 2;
+              tHeight=sourceImage.height() / 2;
+            }
         }
     }
 
