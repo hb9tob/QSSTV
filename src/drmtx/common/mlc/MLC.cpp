@@ -127,11 +127,10 @@ void CMLCEncoder::ProcessDataInternal(CParameter&)
 	/* Channel encoder ------------------------------------------------------ */
 	if (bUseLDPC)
 	{
-		/* 6-frame LDPC pipeline with z=81 (n=1944):
-		   - Accumulate info bits from 6 frames
-		   - Encode N blocks of 1944 coded bits
-		   - Prepend PRBS filler (maps to low-freq subcarriers)
-		   - Output coded+filler frame by frame */
+		/* 6-frame LDPC: accumulate info, encode N blocks of n=1944.
+		   First period: repeat frame 0 data to all 6 positions (like
+		   legacy run-in), encode immediately → valid LDPC from frame 0.
+		   Subsequent periods: real data from 6 frames. */
 
 		/* Store this frame's info bits */
 		int infoOfs = iLDPCFrameCount * iInfoBitsPerFrame;
@@ -140,45 +139,67 @@ void CMLCEncoder::ProcessDataInternal(CParameter&)
 			for (i = 0; i < iM[j][0] + iM[j][1]; i++)
 				vecLDPCInfoAccum[infoOfs + idx++] = vecEncInBuffer[j][i];
 
-		/* Output coded bits for this frame from last encode.
-		   Layout: [PRBS filler | LDPC block 0 | LDPC block 1 | ...] */
-		int codedOfs = iLDPCFrameCount * iCodedBitsPerFrame;
-		idx = 0;
-		for (j = 0; j < iLevels; j++)
-			for (i = 0; i < iNumEncBits; i++)
-				vecEncOutBuffer[j][i] = vecLDPCCodedAll[codedOfs + idx++];
+		/* First frame ever: repeat this frame's data to all 6 positions
+		   and encode immediately (run-in style) */
+		if (iLDPCFrameCount == 0 && !bLDPCFirstEncDone)
+		{
+			for (int f = 1; f < iLDPCTotalFrames; f++)
+				for (i = 0; i < iInfoBitsPerFrame; i++)
+					vecLDPCInfoAccum[f * iInfoBitsPerFrame + i] =
+						vecLDPCInfoAccum[i];
+			/* Encode immediately */
+			int ldpcK = BICMEncoder.getK();
+			int ldpcN = BICMEncoder.getN();
+			int codedIdx = iLDPCFillerBits;
+			int infoIdx2 = 0;
+			for (int blk = 0; blk < iLDPCNumBlocks; blk++)
+			{
+				CVector<_DECISION> blkIn(ldpcK);
+				CVector<_DECISION> blkOut(ldpcN);
+				for (i = 0; i < ldpcK; i++)
+					blkIn[i] = (infoIdx2 < iTotalInfoBits) ?
+						vecLDPCInfoAccum[infoIdx2++] : 0;
+				BICMEncoder.Encode(blkIn, blkOut);
+				for (i = 0; i < ldpcN && codedIdx < iTotalCodedBits; i++)
+					vecLDPCCodedAll[codedIdx++] = blkOut[i];
+			}
+			bLDPCFirstEncDone = true;
+		}
 
 		iLDPCFrameCount++;
 		if (iLDPCFrameCount >= iLDPCTotalFrames)
 		{
-			/* All 6 frames collected — encode N LDPC blocks (z=81, n=1944).
-			   Layout in vecLDPCCodedAll: [PRBS filler | blk0 | blk1 | ...] */
+			/* Encode N LDPC blocks from accumulated 6 frames.
+			   Layout: [PRBS filler | blk0 | blk1 | ...] */
 			int ldpcK = BICMEncoder.getK();
 			int ldpcN = BICMEncoder.getN();
-			int codedIdx = iLDPCFillerBits; /* write after filler */
-			int infoIdx = 0;
+			int codedIdx = iLDPCFillerBits;
+			int infoIdx2 = 0;
 
 			for (int blk = 0; blk < iLDPCNumBlocks; blk++)
 			{
 				CVector<_DECISION> blkIn(ldpcK);
 				CVector<_DECISION> blkOut(ldpcN);
-
-				/* Fill block info: actual data + PRBS shortening */
 				for (i = 0; i < ldpcK; i++)
-				{
-					if (infoIdx < iTotalInfoBits)
-						blkIn[i] = vecLDPCInfoAccum[infoIdx++];
-					else
-						blkIn[i] = 0; /* shortening (encoder adds PRBS internally) */
-				}
-
+					blkIn[i] = (infoIdx2 < iTotalInfoBits) ?
+						vecLDPCInfoAccum[infoIdx2++] : 0;
 				BICMEncoder.Encode(blkIn, blkOut);
-
 				for (i = 0; i < ldpcN && codedIdx < iTotalCodedBits; i++)
 					vecLDPCCodedAll[codedIdx++] = blkOut[i];
 			}
 
 			iLDPCFrameCount = 0;
+		}
+
+		/* Output coded bits for this frame from current encode */
+		{
+			int outFrame = (iLDPCFrameCount == 0) ? (iLDPCTotalFrames - 1)
+			                                       : (iLDPCFrameCount - 1);
+			int codedOfs = outFrame * iCodedBitsPerFrame;
+			int idx2 = 0;
+			for (j = 0; j < iLevels; j++)
+				for (i = 0; i < iNumEncBits; i++)
+					vecEncOutBuffer[j][i] = vecLDPCCodedAll[codedOfs + idx2++];
 		}
 	}
 	else
@@ -258,11 +279,13 @@ void CMLCEncoder::InitInternal(CParameter& TransmParam)
 			vecLDPCInfoAccum.Init(iTotalInfoBits);
 			vecLDPCCodedAll.Init(iTotalCodedBits);
 
-			/* Pre-fill coded buffer with PRBS for filler at the START */
-			if (iLDPCFillerBits > 0)
+			/* Pre-fill ENTIRE coded buffer with PRBS.
+			   Filler area (start) stays PRBS permanently.
+			   LDPC area gets overwritten at first encode.
+			   Prevents all-zeros warm-up (correlated subcarriers). */
 			{
 				uint32_t reg = ~(uint32_t)0;
-				for (i = 0; i < iLDPCFillerBits; i++)
+				for (i = 0; i < iTotalCodedBits; i++)
 				{
 					unsigned char bit = ((reg >> 4) ^ (reg >> 8)) & 1;
 					reg = (reg << 1) | bit;

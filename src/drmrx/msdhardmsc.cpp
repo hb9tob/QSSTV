@@ -487,6 +487,9 @@ int msdhardmsc(double *received_real, double *received_imag, int Lrxdata,
 	  int this_frame_coded = no_of_levels * n_coded;
 	  int ldpc_pos = drm_frame_index - 1; /* 0..5 */
 
+	  printf("LDPC-RX: pos=%d coded_per_frame=%d levels=%d valid=%d\n",
+		 ldpc_pos, this_frame_coded, no_of_levels, ldpc_decoded_valid);
+
 	  /* Accumulate this frame's LLRs */
 	  int accum_offset = ldpc_pos * this_frame_coded;
 	  for (sample_index = 0; sample_index < this_frame_coded; sample_index++)
@@ -513,6 +516,8 @@ int msdhardmsc(double *received_real, double *received_imag, int Lrxdata,
 		  for (int bi = 0; bi < ldpc_k && info_idx < 60000; bi++)
 		    ldpc_decoded_info[info_idx++] = block_info[bi];
 		}
+	      printf("LDPC-DECODE: blocks=%d filler=%d k=%d total_info_decoded=%d\n",
+		     num_blocks, filler_bits, ldpc_k, info_idx);
 	      ldpc_decoded_valid = 1;
 	    }
 
