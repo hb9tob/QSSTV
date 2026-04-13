@@ -21,6 +21,9 @@ public:
   void init();
   void setStatus();
 
+private slots:
+  void slotTurboToggled(bool checked);
+
 private:
   Ui::drmStatusFrame *ui;
   QString call;

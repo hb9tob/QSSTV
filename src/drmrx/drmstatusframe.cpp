@@ -16,6 +16,7 @@ drmStatusFrame::drmStatusFrame(QWidget *parent) :
   redPXM->fill(Qt::red);
   yellowPXM=new QPixmap(40,30);
   yellowPXM->fill(Qt::yellow);
+  connect(ui->turboCheckBox, SIGNAL(toggled(bool)), this, SLOT(slotTurboToggled(bool)));
   init();
 }
 
@@ -225,7 +226,7 @@ void drmStatusFrame::setStatus()
   if(prevFecMode!=ldpc_mode_flag)
     {
       prevFecMode=ldpc_mode_flag;
-      ui->fecEdit->setText(ldpc_mode_flag ? "LDPC" : "Legacy");
+      ui->fecEdit->setText(ldpc_mode_flag ? "Turbo" : "Viterbi");
     }
   if(prevLdpcRate!=ldpc_rate_index)
     {
@@ -376,5 +377,11 @@ QString compactModeToString(uint mode)
     default:tmp+="--" ; break;
     }
   return tmp;
+}
+
+void drmStatusFrame::slotTurboToggled(bool checked)
+{
+  ldpc_mode_flag = checked ? 1 : 0;
+  prevFecMode = -1; /* force display update */
 }
 
