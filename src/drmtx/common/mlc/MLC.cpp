@@ -156,11 +156,22 @@ void CMLCEncoder::ProcessDataInternal(CParameter& TransmParam)
 						vecLDPCInfoAccum[i];
 		}
 
+		/* OUTPUT first, THEN encode. This ensures all 6 frames of a
+		   cycle output from the SAME encode (the previous one).
+		   The new encode is stored for the NEXT cycle. */
+
+		/* Output coded bits for THIS frame from the READ buffer */
+		{
+			int codedOfs = ldpcPos * iCodedBitsPerFrame;
+			int idx2 = 0;
+			for (j = 0; j < iLevels; j++)
+				for (i = 0; i < iNumEncBits; i++)
+					vecEncOutBuffer[j][i] = vecLDPCCodedOut[codedOfs + idx2++];
+		}
+
 		/* Encode at last frame of 6-frame block (pos 5) */
 		if (ldpcPos == iLDPCTotalFrames - 1)
 		{
-			/* Encode N LDPC blocks from accumulated 6 frames.
-			   Layout: [PRBS filler | blk0 | blk1 | ...] */
 			int ldpcK = BICMEncoder.getK();
 			int ldpcN = BICMEncoder.getN();
 			int codedIdx = iLDPCFillerBits;
@@ -176,19 +187,9 @@ void CMLCEncoder::ProcessDataInternal(CParameter& TransmParam)
 				BICMEncoder.Encode(blkIn, blkOut);
 				for (i = 0; i < ldpcN && codedIdx < iTotalCodedBits; i++)
 					vecLDPCCodedNew[codedIdx++] = blkOut[i];
-				/* Print first 20 coded bits of block 0 for comparison with RX */
-				if (blk == 0)
-				{
-					printf("LDPC-TX-CODED[0..19]: ");
-					for (i = 0; i < 20; i++)
-						printf("%d", (int)vecLDPCCodedNew[iLDPCFillerBits + i]);
-					printf("\n");
-				}
 			}
 
-			/* Copy new encode to output buffer.
-			   Next cycle reads from vecLDPCCodedOut while
-			   vecLDPCCodedNew gets overwritten at next encode. */
+			/* Copy New → Out for next cycle's output */
 			for (i = 0; i < iTotalCodedBits; i++)
 				vecLDPCCodedOut[i] = vecLDPCCodedNew[i];
 			bLDPCFirstEncDone = true;
@@ -197,15 +198,6 @@ void CMLCEncoder::ProcessDataInternal(CParameter& TransmParam)
 		/* Toggle superframe parity at end of each superframe */
 		if (TransmParam.iFrameIDTransm == 2)
 			iLDPCSuperframeParity ^= 1;
-
-		/* Output coded bits for THIS frame from the READ buffer */
-		{
-			int codedOfs = ldpcPos * iCodedBitsPerFrame;
-			int idx2 = 0;
-			for (j = 0; j < iLevels; j++)
-				for (i = 0; i < iNumEncBits; i++)
-					vecEncOutBuffer[j][i] = vecLDPCCodedOut[codedOfs + idx2++];
-		}
 	}
 	else
 	{
