@@ -1,0 +1,38 @@
+Source: qsstv
+Section: hamradio
+Priority: optional
+Maintainer: HB9TOB <hb9tob@hb9tob.ch>
+Build-Depends: debhelper-compat (= 13),
+               qtbase5-dev,
+               qtbase5-dev-tools,
+               qt5-qmake,
+               libqt5svg5-dev,
+               libqt5serialport5-dev,
+               pkg-config,
+               g++,
+               libfftw3-dev,
+               libhamlib++-dev,
+               libasound2-dev,
+               libpulse-dev,
+               libopenjp2-7-dev,
+               libavif-dev,
+               libv4l-dev
+Standards-Version: 4.6.2
+Homepage: https://github.com/hb9tob/QSSTV
+
+Package: qsstv
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: Qt5 SSTV and DRM image transceiver for amateur radio
+ QSSTV is a program for receiving and transmitting SSTV (Slow Scan
+ Television) and HAMDRM/DSSTV (Digital Radio Mondiale) images over
+ amateur radio. Compatible with MMSSTV and EasyPal.
+ .
+ Features include:
+  - SSTV: all common modes (Robot, Martin, Scottie, PD, etc.)
+  - DRM: OFDM modulation with Viterbi or LDPC FEC
+  - Image codecs: JPEG2000 (JP2) and AVIF
+  - Sound: PulseAudio and ALSA backends
+  - Radio control via hamlib
+  - Reed-Solomon error correction
+  - BSR (Bad Segment Request) for retransmission

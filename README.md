@@ -1,54 +1,123 @@
 # QSSTV
-QSSTV is a program for receiving and transmitting SSTV and HAMDRM (sometimes called DSSTV). It is compatible with most of MMSSTV and EasyPal
+
+QSSTV is a program for receiving and transmitting SSTV (Slow Scan Television) and HAMDRM/DSSTV (Digital Radio Mondiale) images over amateur radio. Compatible with MMSSTV and EasyPal.
+
+## Features
+
+- **SSTV**: all common modes (Robot, Martin, Scottie, PD, etc.)
+- **DRM**: OFDM modulation with selectable FEC:
+  - Legacy Viterbi (compatible with EasyPal)
+  - LDPC (WiFi 802.11n QC-LDPC codes, rates 1/2 to 5/6)
+- **Image codecs**: JPEG2000 (JP2) and AVIF (independently selectable)
+- **Sound**: PulseAudio + ALSA (Linux), PulseAudio (macOS), PortAudio (Windows)
+- **Radio control** via hamlib + serial PTT via QSerialPort
+- **Reed-Solomon** error correction with BSR retransmission
 
 ## Installation
 
-### Dependencies 
-
-For apt based distros you can install dependencies as follows:
-
-```
-apt install pkg-config g++ libfftw3-dev qtbase5-dev qtchooser qt5-qmake qtbase5-dev-tools libqt5svg5-dev libhamlib++-dev libasound2-dev libpulse-dev libopenjp2-7 libopenjp2-7-dev libv4l-dev build-essential
-```
-
-### macOS Dependencies
-
-For macOS users, you can install dependencies using Homebrew:
+### Debian/Ubuntu package (recommended)
 
 ```bash
-brew install qt@5 fftw hamlib openjpeg pulseaudio qwt pkg-config
+sudo apt install build-essential debhelper qtbase5-dev qt5-qmake \
+  qtbase5-dev-tools libqt5svg5-dev libqt5serialport5-dev pkg-config \
+  libfftw3-dev libhamlib++-dev libasound2-dev libpulse-dev \
+  libopenjp2-7-dev libavif-dev libv4l-dev
+
+cd QSSTV
+dpkg-buildpackage -us -uc -b
+sudo dpkg -i ../qsstv_*.deb
 ```
 
-**Note:** You must have PulseAudio running for sound to work:
+### Fedora/RHEL/openSUSE
+
 ```bash
-brew services start pulseaudio
+# Fedora/RHEL
+sudo dnf install gcc-c++ qt5-qtbase-devel qt5-qtserialport-devel \
+  fftw-devel hamlib-devel alsa-lib-devel pulseaudio-libs-devel \
+  openjpeg2-devel libavif-devel libv4l-devel pkg-config
+
+# openSUSE
+sudo zypper install gcc-c++ libqt5-qtbase-devel libqt5-qtserialport-devel \
+  fftw3-devel hamlib-devel alsa-devel libpulse-devel \
+  openjpeg2-devel libavif-devel libv4l-devel pkg-config
+
+cd QSSTV/src
+qmake-qt5 && make -j$(nproc)
+sudo make install
 ```
 
-### Compile and Install
-	mkdir src/build
-	cd src/build
-	# For Linux
-	qmake ..
-	# For macOS
-	/opt/homebrew/opt/qt@5/bin/qmake ..
-	
-	make -j2
-	sudo make install
+### Arch Linux
 
-Note: make -j2, 2 is the number of cores to be used for parallel compiling. If you have more cores, use a higher number.
+```bash
+sudo pacman -S base-devel qt5-base qt5-serialport fftw hamlib \
+  alsa-lib libpulse openjpeg2 libavif v4l-utils pkg-config
 
-### Debug Compile
-If you have problems compiling the software, please give as much information as possible but at least:
-* Linux Distribution and Version (e.g. Ubuntu 18.04)
-* QT Version (e.g. Qt 5.4.1)
-* Screen dump of the compile process showing the error
+cd QSSTV/src
+qmake && make -j$(nproc)
+sudo make install
+```
 
-If you want to be able to debug the program, the simplest way is to install QtCreator and from within QtCreator open a new project and point to the qsstv.pro file. Note: you will need to install doxygen and libqwt
+### Compile from source (generic Linux)
 
-`sudo apt-get install doxygen libqwt-qt5-dev`
+#### Dependencies
 
-You can also run qmake with the following attributes:
+| Library | Debian/Ubuntu package | Purpose |
+|---------|----------------------|---------|
+| Qt5 Core/Gui/Widgets/Network/Xml | `qtbase5-dev` | GUI framework |
+| Qt5 SerialPort | `libqt5serialport5-dev` | PTT via serial port |
+| FFTW3 | `libfftw3-dev` | FFT for OFDM/DSP |
+| hamlib | `libhamlib++-dev` | Radio control (CAT) |
+| ALSA | `libasound2-dev` | Audio backend (Linux) |
+| PulseAudio | `libpulse-dev` | Audio backend |
+| OpenJPEG | `libopenjp2-7-dev` | JPEG2000 codec |
+| libavif | `libavif-dev` | AVIF codec |
+| V4L2 | `libv4l-dev` | Video capture (Linux) |
+| pkg-config | `pkg-config` | Build system |
 
-`qmake CONFIG+=debug`
+```bash
+cd QSSTV/src
+qmake PREFIX=/usr/local
+make -j$(nproc)
+sudo make install
+```
 
-and use an external debugger (such as gdb)
+### macOS
+
+```bash
+brew install qt@5 fftw hamlib openjpeg libavif pulseaudio pkg-config
+
+cd QSSTV/src
+/opt/homebrew/opt/qt@5/bin/qmake
+make -j$(sysctl -n hw.ncpu)
+sudo make install
+```
+
+**Note:** PulseAudio must be running: `brew services start pulseaudio`
+
+### Windows (MSYS2 MinGW-w64)
+
+See [WINDOWS-BUILD.md](WINDOWS-BUILD.md) for detailed instructions.
+
+## Debug build
+
+```bash
+sudo apt install doxygen libqwt-qt5-dev  # additional deps
+cd QSSTV/src
+qmake CONFIG+=debug
+make -j$(nproc)
+```
+
+## DRM Profile Configuration
+
+Each DRM profile has independent settings for:
+- **FEC mode**: Legacy (Viterbi) or LDPC
+- **Image codec**: JP2 or AVIF
+- **LDPC rate**: 1/2, 2/3, 3/4, 5/6 (only when FEC=LDPC)
+- **QAM**: 4-QAM, 16-QAM, 64-QAM
+- **Protection level**, **Bandwidth**, **Reed-Solomon**
+
+The four combinations (Viterbi+JP2, Viterbi+AVIF, LDPC+JP2, LDPC+AVIF) are all valid. Use Viterbi+JP2 for maximum compatibility with legacy stations.
+
+## License
+
+GPL-2.0-or-later. See [COPYING](COPYING) for details.

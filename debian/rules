@@ -1,0 +1,20 @@
+#!/usr/bin/make -f
+
+export DH_VERBOSE = 1
+export PREFIX = /usr
+
+%:
+	dh $@
+
+override_dh_auto_configure:
+	cd src && qmake PREFIX=$(PREFIX) qsstv.pro
+
+override_dh_auto_build:
+	cd src && $(MAKE) -j$(shell nproc)
+
+override_dh_auto_install:
+	cd src && $(MAKE) INSTALL_ROOT=$(CURDIR)/debian/qsstv install
+
+override_dh_auto_clean:
+	cd src && [ -f Makefile ] && $(MAKE) clean || true
+	rm -f src/Makefile src/moc_* src/*.o

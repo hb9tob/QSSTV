@@ -1,0 +1,10 @@
+qsstv (10.0.0-1) unstable; urgency=medium
+
+  * LDPC forward error correction (WiFi 802.11n QC-LDPC codes)
+  * AVIF image codec support (independent of FEC mode)
+  * WiFi-style MSC payload sizing for LDPC mode
+  * PRBS run-in/run-out for LDPC pipeline
+  * Windows PortAudio backend
+  * QSerialPort for cross-platform PTT
+
+ -- HB9TOB <hb9tob@hb9tob.ch>  Sun, 13 Apr 2026 20:00:00 +0200
