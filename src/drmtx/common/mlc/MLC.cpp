@@ -151,29 +151,29 @@ void CMLCEncoder::ProcessDataInternal(CParameter&)
 		iLDPCFrameCount++;
 		if (iLDPCFrameCount >= iLDPCTotalFrames)
 		{
-			/* All 6 frames collected — encode N LDPC blocks.
-			   Output goes after the filler in vecLDPCCodedAll. */
-			int ldpcN = ldpc_n_from_z(iLDPCz);
-			CVector<_DECISION> blockIn(ldpc_k_from_z(iLDPCz, 0));
-			CVector<_DECISION> blockOut(ldpcN);
+			/* All 6 frames collected — encode N LDPC blocks (z=81, n=1944).
+			   Layout in vecLDPCCodedAll: [PRBS filler | blk0 | blk1 | ...] */
 			int ldpcK = BICMEncoder.getK();
-
-			int codedIdx = iLDPCFillerBits; /* skip filler area */
+			int ldpcN = BICMEncoder.getN();
+			int codedIdx = iLDPCFillerBits; /* write after filler */
 			int infoIdx = 0;
 
 			for (int blk = 0; blk < iLDPCNumBlocks; blk++)
 			{
-				/* Feed info bits to encoder for this block */
 				CVector<_DECISION> blkIn(ldpcK);
 				CVector<_DECISION> blkOut(ldpcN);
-				for (i = 0; i < ldpcK && infoIdx < vecLDPCInfoAccum.Size(); i++)
-					blkIn[i] = vecLDPCInfoAccum[infoIdx++];
-				for (; i < ldpcK; i++)
-					blkIn[i] = 0; /* shortening if needed */
+
+				/* Fill block info: actual data + PRBS shortening */
+				for (i = 0; i < ldpcK; i++)
+				{
+					if (infoIdx < iTotalInfoBits)
+						blkIn[i] = vecLDPCInfoAccum[infoIdx++];
+					else
+						blkIn[i] = 0; /* shortening (encoder adds PRBS internally) */
+				}
 
 				BICMEncoder.Encode(blkIn, blkOut);
 
-				/* Copy coded bits after filler */
 				for (i = 0; i < ldpcN && codedIdx < iTotalCodedBits; i++)
 					vecLDPCCodedAll[codedIdx++] = blkOut[i];
 			}
@@ -245,28 +245,38 @@ void CMLCEncoder::InitInternal(CParameter& TransmParam)
 		/* N blocks of n=1944 that fit */
 		int ldpcN = ldpc_n_from_z(iLDPCz); /* 1944 */
 		iLDPCNumBlocks = iTotalCodedBits / ldpcN;
-		if (iLDPCNumBlocks < 1) iLDPCNumBlocks = 1;
-		iLDPCFillerBits = iTotalCodedBits - iLDPCNumBlocks * ldpcN;
 
-		BICMEncoder.Init(TransmParam.iLDPCRate, iLDPCz, iTotalInfoBits);
-
-		/* Allocate multi-frame buffers */
-		vecLDPCInfoAccum.Init(iTotalInfoBits);
-		vecLDPCCodedAll.Init(iTotalCodedBits);
-
-		/* Pre-fill coded buffer with PRBS for filler positions at the START */
-		if (iLDPCFillerBits > 0)
+		if (iLDPCNumBlocks >= 1)
 		{
-			uint32_t reg = ~(uint32_t)0;
-			for (i = 0; i < iLDPCFillerBits; i++)
+			iLDPCFillerBits = iTotalCodedBits - iLDPCNumBlocks * ldpcN;
+
+			/* Init encoder for SINGLE BLOCK operation (z=81, k per block) */
+			int ldpcK = ldpc_k_from_z(iLDPCz, TransmParam.iLDPCRate);
+			BICMEncoder.Init(TransmParam.iLDPCRate, iLDPCz, ldpcK);
+
+			/* Allocate multi-frame buffers */
+			vecLDPCInfoAccum.Init(iTotalInfoBits);
+			vecLDPCCodedAll.Init(iTotalCodedBits);
+
+			/* Pre-fill coded buffer with PRBS for filler at the START */
+			if (iLDPCFillerBits > 0)
 			{
-				unsigned char bit = ((reg >> 4) ^ (reg >> 8)) & 1;
-				reg = (reg << 1) | bit;
-				vecLDPCCodedAll[i] = bit;
+				uint32_t reg = ~(uint32_t)0;
+				for (i = 0; i < iLDPCFillerBits; i++)
+				{
+					unsigned char bit = ((reg >> 4) ^ (reg >> 8)) & 1;
+					reg = (reg << 1) | bit;
+					vecLDPCCodedAll[i] = bit;
+				}
 			}
 		}
+		else
+		{
+			/* Can't fit even 1 LDPC block — fallback to Viterbi */
+			bUseLDPC = false;
+		}
 	}
-	else
+	if (!bUseLDPC)
 	{
 		for (i = 0; i < iLevels; i++)
 			ConvEncoder[i].Init(eCodingScheme, eChannelType, iN[0], iN[1],
