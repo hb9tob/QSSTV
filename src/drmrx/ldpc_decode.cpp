@@ -3,7 +3,7 @@
  *
  * Description:
  *   Normalized min-sum belief propagation decoder for 802.11n LDPC codes.
- *   Block size n=1944, expansion factor z=81.
+ *   Block size n=648, expansion factor z=27.
  *   Supports rates 1/2, 2/3, 3/4, 5/6.
  *
  ******************************************************************************
@@ -271,16 +271,23 @@ int ldpc_decode(float *llr, int n_coded_bits, int ldpc_rate,
     ldpc_graph_t graph;
     graph_init(&graph, ldpc_rate);
 
+    /* Distribute puncturing evenly across blocks (must match encoder) */
+    int totalCodedCapacity = numBlocks * n;
+    int totalPunctured = totalCodedCapacity - n_coded_bits;
+    if (totalPunctured < 0) totalPunctured = 0;
+    int punctPerBlock = numBlocks > 0 ? totalPunctured / numBlocks : 0;
+    int punctRemainder = numBlocks > 0 ? totalPunctured % numBlocks : 0;
+
     int infoIdx = 0;
+    int llrIdx = 0;
 
     for (int blk = 0; blk < numBlocks; blk++)
     {
-        int offset = blk * n;
-        int codedThisBlock = n;
-
-        /* Last block may have fewer coded bits (punctured parity) */
-        if (offset + codedThisBlock > n_coded_bits)
-            codedThisBlock = n_coded_bits - offset;
+        /* This block's puncturing: last blocks get one extra */
+        int thisPunct = punctPerBlock;
+        if (blk >= numBlocks - punctRemainder)
+            thisPunct++;
+        int codedThisBlock = n - thisPunct;
         if (codedThisBlock < 0) codedThisBlock = 0;
 
         /* Info bits for this block (for shortening detection) */
@@ -288,9 +295,16 @@ int ldpc_decode(float *llr, int n_coded_bits, int ldpc_rate,
         if (infoThisBlock > k) infoThisBlock = k;
         if (infoThisBlock < 0) infoThisBlock = 0;
 
+        /* Feed received LLRs for this block from the flat stream */
+        float blockLLR[LDPC_N];
+        for (int i = 0; i < codedThisBlock && llrIdx < n_coded_bits; i++)
+            blockLLR[i] = llr[llrIdx++];
+        /* Remaining positions will be handled by decode_block as
+           shortening (info) or punctured parity (erasure) */
+
         /* Decode this block */
-        char blockInfo[1944]; /* max k is 1620, but use n for safety */
-        decode_block(&graph, llr + offset, blockInfo, max_iter,
+        char blockInfo[LDPC_N];
+        decode_block(&graph, blockLLR, blockInfo, max_iter,
                      codedThisBlock, infoThisBlock);
 
         /* Copy info bits to output, respecting buffer limit */
@@ -302,9 +316,11 @@ int ldpc_decode(float *llr, int n_coded_bits, int ldpc_rate,
         /* Output full codeword hard decisions for hardpoints update */
         if (cw_hard)
         {
+            int cwIdx = blk * codedThisBlock; /* position in flat output */
             for (int i = 0; i < codedThisBlock; i++)
             {
-                cw_hard[offset + i] = (graph.varBelief[i] < 0.0f) ? 1 : 0;
+                if (cwIdx + i < n_coded_bits)
+                    cw_hard[cwIdx + i] = (graph.varBelief[i] < 0.0f) ? 1 : 0;
             }
         }
     }

@@ -243,6 +243,13 @@ int CLDPCEncoder::Encode(CVector<_DECISION>& vecInputData,
 {
     int outputIdx = 0;
 
+    /* Distribute puncturing evenly across all blocks.
+     * Each block outputs (n - punctPerBlock) bits, with the remainder
+     * blocks outputting one fewer bit. Puncture from the end of each
+     * block (last parity bits = least critical). */
+    int punctPerBlock = (m_numBlocks > 0) ? m_punctureBits / m_numBlocks : 0;
+    int punctRemainder = (m_numBlocks > 0) ? m_punctureBits % m_numBlocks : 0;
+
     for (int blk = 0; blk < m_numBlocks; blk++)
     {
         /* Fill info buffer: extract hard decisions from soft input */
@@ -263,13 +270,12 @@ int CLDPCEncoder::Encode(CVector<_DECISION>& vecInputData,
         /* Encode the block */
         encodeBlock(&m_infoBuf[0], &m_codeBuf[0]);
 
-        /* Copy encoded bits to output, respecting puncturing on last block */
-        int bitsToOutput = m_n;
-        if (blk == m_numBlocks - 1 && m_punctureBits > 0)
-        {
-            bitsToOutput = m_n - m_punctureBits;
-            if (bitsToOutput < 0) bitsToOutput = 0;
-        }
+        /* Distribute puncturing: last blocks get one extra punctured bit */
+        int thisPunct = punctPerBlock;
+        if (blk >= m_numBlocks - punctRemainder)
+            thisPunct++;
+        int bitsToOutput = m_n - thisPunct;
+        if (bitsToOutput < 0) bitsToOutput = 0;
 
         for (int i = 0; i < bitsToOutput && outputIdx < m_numOutputBits; i++)
         {

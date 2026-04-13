@@ -61,7 +61,6 @@ void CMLCEncoder::ProcessDataInternal(CParameter&)
 			for (i = 0; i < iM[j][0]; i++)
 			{
 				vecEncInBuffer[j][i] =
-					// BitToSoft((*pvecInputData)[iElementCounter]);
 					(*pvecInputData)[iElementCounter];
 
 				iElementCounter++;
@@ -75,7 +74,6 @@ void CMLCEncoder::ProcessDataInternal(CParameter&)
 			for (i = 0; i < iM[j][1]; i++)
 			{
 				vecEncInBuffer[j][iM[j][0] + i] =
-					// BitToSoft((*pvecInputData)[iElementCounter]);
 					(*pvecInputData)[iElementCounter];
 
 				iElementCounter++;
@@ -91,7 +89,6 @@ void CMLCEncoder::ProcessDataInternal(CParameter&)
 		for (i = 0; i < iM[0][1]; i++)
 		{
 			vecEncInBuffer[0][i] =
-				// BitToSoft((*pvecInputData)[iElementCounter]);
 				(*pvecInputData)[iElementCounter];
 
 			iElementCounter++;
@@ -105,7 +102,6 @@ void CMLCEncoder::ProcessDataInternal(CParameter&)
 			for (i = 0; i < iM[j][0]; i++)
 			{
 				vecEncInBuffer[j][i] =
-				//	BitToSoft((*pvecInputData)[iElementCounter]);
 					(*pvecInputData)[iElementCounter];
 
 				iElementCounter++;
@@ -119,7 +115,6 @@ void CMLCEncoder::ProcessDataInternal(CParameter&)
 			for (i = 0; i < iM[j][1]; i++)
 			{
 				vecEncInBuffer[j][iM[j][0] + i] =
-					// BitToSoft((*pvecInputData)[iElementCounter]);
 					(*pvecInputData)[iElementCounter];
 
 				iElementCounter++;
@@ -131,9 +126,9 @@ void CMLCEncoder::ProcessDataInternal(CParameter&)
 	/* Channel encoder ------------------------------------------------------ */
 	if (bUseLDPC)
 	{
-		/* WiFi-style BICM: single LDPC encode over all levels combined.
-		   Concatenate all levels' info → single encode → distribute coded
-		   bits back to per-level buffers for QAM mapping. */
+		/* LDPC with MLC structure preserved: collect all levels' info bits,
+		   single LDPC encode, then distribute coded bits back to per-level
+		   buffers for bit interleaving and QAM mapping. */
 		CVector<_DECISION> bicmIn(iTotalInfoBits);
 		CVector<_DECISION> bicmOut(iTotalCodedBits);
 		int idx = 0;
@@ -141,7 +136,7 @@ void CMLCEncoder::ProcessDataInternal(CParameter&)
 			for (i = 0; i < iM[j][0] + iM[j][1]; i++)
 				bicmIn[idx++] = vecEncInBuffer[j][i];
 		BICMEncoder.Encode(bicmIn, bicmOut);
-		/* Distribute coded bits: first iNumEncBits to level 0, next to level 1, etc. */
+		/* Distribute coded bits back to per-level buffers */
 		idx = 0;
 		for (j = 0; j < iLevels; j++)
 			for (i = 0; i < iNumEncBits; i++)
