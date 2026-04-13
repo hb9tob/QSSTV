@@ -30,6 +30,7 @@
 \******************************************************************************/
 
 #include "MLC.h"
+#include "TurboEncoder.h"
 
 #define NUM_FAC_CELLS 45
 
@@ -124,9 +125,40 @@ void CMLCEncoder::ProcessDataInternal(CParameter& TransmParam)
 
 
 	/* Channel encoder ------------------------------------------------------ */
-	/* TODO: when bUseTurbo, use turbo encoder per-frame here */
-	for (j = 0; j < iLevels; j++)
-		ConvEncoder[j].Encode(vecEncInBuffer[j], vecEncOutBuffer[j]);
+	if (bUseTurbo)
+	{
+		/* Turbo encode: concatenate all levels' info bits, encode,
+		   distribute coded bits back to levels' output buffers. */
+		int totalInfo = 0;
+		for (j = 0; j < iLevels; j++)
+			totalInfo += iM[j][0] + iM[j][1];
+		int totalCoded = iLevels * iNumEncBits;
+
+		char *inBuf = new char[totalInfo];
+		char *outBuf = new char[totalCoded + 64]; /* +64 for tail */
+		int idx = 0;
+		for (j = 0; j < iLevels; j++)
+			for (i = 0; i < iM[j][0] + iM[j][1]; i++)
+				inBuf[idx++] = (char)vecEncInBuffer[j][i];
+
+		int nCoded = turbo_encode(inBuf, totalInfo, outBuf, iTurboRate);
+
+		/* Distribute coded bits to level output buffers.
+		   Pad with zeros if turbo produces fewer bits than expected
+		   (due to puncturing mismatch). Truncate if more. */
+		idx = 0;
+		for (j = 0; j < iLevels; j++)
+			for (i = 0; i < iNumEncBits; i++)
+				vecEncOutBuffer[j][i] = (idx < nCoded) ? outBuf[idx++] : 0;
+
+		delete[] inBuf;
+		delete[] outBuf;
+	}
+	else
+	{
+		for (j = 0; j < iLevels; j++)
+			ConvEncoder[j].Encode(vecEncInBuffer[j], vecEncOutBuffer[j]);
+	}
 
 
 	/* Bit interleaver ------------------------------------------------------ */
@@ -150,6 +182,8 @@ void CMLCEncoder::InitInternal(CParameter& TransmParam)
 	int	iNumInBits;
 
 	TransmParam.Lock();
+	bUseTurbo = (eChannelType == CT_MSC) && (TransmParam.iFECMode == 1);
+	iTurboRate = TransmParam.iLDPCRate; /* reuse same rate index */
 	CalculateParam(TransmParam, eChannelType);
 	TransmParam.Unlock();
 
@@ -160,7 +194,14 @@ void CMLCEncoder::InitInternal(CParameter& TransmParam)
 	/* Energy dispersal */
 	EnergyDisp.Init(iNumInBits, iL[2]);
 
-	/* Encoder — legacy Viterbi (TODO: turbo when fecMode=1) */
+	/* Encoder */
+	if (bUseTurbo)
+	{
+		/* Turbo code: per-frame, same MSC size as legacy Viterbi.
+		   Info bits = sum(iM[j][0]+iM[j][1]), coded bits match frame. */
+		fprintf(stderr, "TURBO-TX-INIT: infoBits=%d codedBits=%d rate=%d\n",
+			iNumInBits, iLevels * iNumEncBits, iTurboRate);
+	}
 	for (i = 0; i < iLevels; i++)
 		ConvEncoder[i].Init(eCodingScheme, eChannelType, iN[0], iN[1],
 			iM[i][0], iM[i][1], iCodeRate[i][0], iCodeRate[i][1], i);

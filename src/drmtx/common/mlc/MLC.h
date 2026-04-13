@@ -75,11 +75,13 @@ class CMLCEncoder : public CTransmitterModul<_BINARY, _COMPLEX>,
 					public CMLC
 {
 public:
-	CMLCEncoder() {}
+	CMLCEncoder() : bUseTurbo(false), iTurboRate(0) {}
 	virtual ~CMLCEncoder() {}
 
 protected:
 	CConvEncoder		ConvEncoder[MC_MAX_NUM_LEVELS];
+	bool				bUseTurbo;
+	int					iTurboRate;
 
 	/* Two different types of interleaver table */
 	CBitInterleaver		BitInterleaver[2];
