@@ -381,7 +381,8 @@ QString compactModeToString(uint mode)
 
 void drmStatusFrame::slotTurboToggled(bool checked)
 {
-  ldpc_mode_flag = checked ? 1 : 0;
+  turbo_force_flag = checked ? 1 : 0;
+  ldpc_mode_flag = turbo_force_flag;
   prevFecMode = -1; /* force display update */
 }
 

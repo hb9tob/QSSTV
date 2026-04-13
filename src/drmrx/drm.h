@@ -108,6 +108,7 @@ extern int interleaver_depth_new;
 extern int ldpc_mode_flag;
 extern int ldpc_rate_index;
 extern int avif_mode_flag;
+extern int turbo_force_flag;
 extern float freqOffset;
 extern float deltaFS;
 //extern char drmCallsign[9];

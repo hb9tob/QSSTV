@@ -75,9 +75,10 @@ int interleaver_depth_new;
 bool callsignValid;
 
 /* Mode flags (kept for future turbo code signaling) */
-int ldpc_mode_flag = 0;    /* 0=Viterbi, 1=Turbo (TODO) */
-int ldpc_rate_index = 0;   /* reserved for turbo rate */
+int ldpc_mode_flag = 0;    /* 0=Viterbi, 1=Turbo */
+int ldpc_rate_index = 0;   /* turbo rate index */
 int avif_mode_flag = 0;    /* 0=JP2, 1=AVIF */
+int turbo_force_flag = 0;  /* 1=GUI checkbox forces turbo mode */
 int drm_frame_index = 0;   /* 1..6 position within DRM frame cycle */
 int drm_fac_identity = 0;  /* FAC identity: 0-2 within superframe */
 
@@ -430,10 +431,10 @@ void channel_decoding(void)
   identityCount++;
   audio_data_flag = (int) channel_parameters[6];
 
-  /* FEC/codec flags no longer in FAC — preserved for legacy callsign compat.
-     LDPC mode detected from file extension or future SDC signaling.
-     For now, force legacy Viterbi. TODO: auto-detect or SDC signaling. */
-  ldpc_mode_flag = 0;
+  /* FEC/codec flags: use GUI override if set, otherwise default to Viterbi.
+     TODO: auto-detect or SDC signaling for proper FEC mode detection. */
+  if (!turbo_force_flag)
+    ldpc_mode_flag = 0;
   ldpc_rate_index = 0;
   avif_mode_flag = 0;
 
