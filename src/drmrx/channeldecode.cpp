@@ -431,18 +431,19 @@ void channel_decoding(void)
   identityCount++;
   audio_data_flag = (int) channel_parameters[6];
 
-  /* LDPC/AVIF mode flags from FAC bits 10-13 */
-  ldpc_mode_flag = (int) fac_data[10];
-  /* FAC Enqueue stores MSB first: bit 11 = MSB, bit 12 = LSB of LDPC rate */
-  ldpc_rate_index = 2 * (int) fac_data[11] + (int) fac_data[12];
-  avif_mode_flag = (int) fac_data[13];
+  /* FEC/codec flags no longer in FAC — preserved for legacy callsign compat.
+     LDPC mode detected from file extension or future SDC signaling.
+     For now, force legacy Viterbi. TODO: auto-detect or SDC signaling. */
+  ldpc_mode_flag = 0;
+  ldpc_rate_index = 0;
+  avif_mode_flag = 0;
 
   // we need 3 consequetive valid fac's to have a complete call
 
-  /* decoding of text in fac data (shifted by 4 bits for LDPC/AVIF flags) */
-  localDrmCallsign[3*identity]   = getfacchar(&facblock[14]);
-  localDrmCallsign[3*identity+1] = getfacchar(&facblock[21]);
-  localDrmCallsign[3*identity+2] = getfacchar(&facblock[28]);
+  /* Callsign at original position (bit 10+), compatible with legacy TX */
+  localDrmCallsign[3*identity]   = getfacchar(&facblock[10]);
+  localDrmCallsign[3*identity+1] = getfacchar(&facblock[17]);
+  localDrmCallsign[3*identity+2] = getfacchar(&facblock[24]);
   localDrmCallsign[3*identity+3] = '\0';
   if ((identity == 2) && (identityCount>=3))
     {

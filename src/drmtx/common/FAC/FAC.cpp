@@ -149,13 +149,9 @@ void CFACTransmit::FACParam(CVector<_BINARY>* pbiFACData, CParameter& Parameter)
 
 	}
 
-	/* LDPC/AVIF mode signaling (4 bits before callsign) */
-	/* Bit 10: FEC mode (0=Viterbi, 1=LDPC) */
-	(*pbiFACData).Enqueue((uint32_t) Parameter.iFECMode, 1);
-	/* Bits 11-12: LDPC rate (0=1/2, 1=2/3, 2=3/4, 3=5/6) */
-	(*pbiFACData).Enqueue((uint32_t) Parameter.iLDPCRate, 2);
-	/* Bit 13: Image codec (0=JP2, 1=AVIF) */
-	(*pbiFACData).Enqueue((uint32_t) Parameter.iImageCodec, 1);
+	/* FEC/codec signaling removed from FAC to preserve legacy callsign
+	   compatibility. Image codec detected from filename extension.
+	   FEC mode and LDPC rate: TODO signal via SDC or MOT header. */
 
 	{
 		int	iLenLabel;
