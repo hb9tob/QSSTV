@@ -517,10 +517,17 @@ int msdhardmsc(double *received_real, double *received_imag, int Lrxdata,
 	  /* OUTPUT first, THEN decode — same principle as TX.
 	     At pos=5 the old buffer still holds the previous cycle's data,
 	     so we must output before overwriting with the new decode. */
-	  /* WiFi-style: MSC payload = LDPC capacity / 6 (same as TX) */
+	  /* WiFi-style: MSC payload = min(LDPC capacity, Viterbi size) / 6.
+	     For rates > 1/2 the LDPC capacity exceeds Viterbi buffer size,
+	     so we cap to the Viterbi allocation (stronger FEC, same data). */
 	  int ldpc_info_cap = (6 * this_frame_coded / ldpc_n_from_z(81))
 			      * ldpc_k_from_z(81, ldpc_rate_index);
+	  int viterbi_info_per_frame = 0;
+	  for (level = 0; level < no_of_levels; level++)
+	    viterbi_info_per_frame += (int) L1_real[level] + (int) L2_real[level];
 	  int total_info_per_frame = ldpc_info_cap / 6;
+	  if (total_info_per_frame > viterbi_info_per_frame)
+	    total_info_per_frame = viterbi_info_per_frame;
 
 	  /* Override L1/L2 for energy dispersal (single-level: all in L2) */
 	  L1_real[0] = 0;

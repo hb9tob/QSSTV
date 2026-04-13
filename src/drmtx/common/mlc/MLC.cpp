@@ -320,8 +320,15 @@ void CMLCEncoder::InitInternal(CParameter& TransmParam)
 			int ldpcK = ldpc_k_from_z(iLDPCz, TransmParam.iLDPCRate);
 			iLDPCInfoCapacity = iLDPCNumBlocks * ldpcK;
 
-			/* WiFi-style: MSC payload = LDPC capacity / 6 */
-			iInfoBitsPerFrame = iLDPCInfoCapacity / iLDPCTotalFrames;
+			/* WiFi-style: MSC payload = min(LDPC capacity, Viterbi) / 6.
+			   For rates > 1/2 LDPC capacity exceeds Viterbi → cap to
+			   Viterbi (stronger FEC, same data rate). */
+			{
+				int legacyInfoPerFrame = iInfoBitsPerFrame;
+				int ldpcInfoPerFrame = iLDPCInfoCapacity / iLDPCTotalFrames;
+				iInfoBitsPerFrame = (ldpcInfoPerFrame < legacyInfoPerFrame)
+					? ldpcInfoPerFrame : legacyInfoPerFrame;
+			}
 			iTotalInfoBits = iInfoBitsPerFrame * iLDPCTotalFrames;
 
 			/* Update iM/iL so the whole chain sees the LDPC-derived size */
