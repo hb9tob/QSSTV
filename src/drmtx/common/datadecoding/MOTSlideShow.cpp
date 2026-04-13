@@ -96,9 +96,22 @@ void CMOTSlideShowEncoder::AddNextPicture ()
   /* Here at least one picture is in container */
   if (vecPicFileNames.Size () > 0)
     {
-      /* Get current file name */
+      /* Get current file name - sanitize to ASCII for cross-platform compatibility
+         (EasyPal/QSSTV receivers may fail on accented characters) */
       QString tmp=vecPicFileNames[iPictureCnt].name+"."+vecPicFileNames[iPictureCnt].format;
-      strCurObjName = tmp.toLatin1().data();
+      QString safeTmp;
+      for (int ci=0; ci<tmp.length(); ci++)
+        {
+          QChar ch=tmp.at(ci);
+          if (ch.unicode() < 128 && ch != '/' && ch != '\\' && ch != ':'
+              && ch != '*' && ch != '?' && ch != '"' && ch != '<'
+              && ch != '>' && ch != '|')
+            safeTmp.append(ch);
+          else if (ch.unicode() >= 128)
+            safeTmp.append('_');
+        }
+      if (safeTmp.isEmpty()) safeTmp="image." + vecPicFileNames[iPictureCnt].format;
+      strCurObjName = safeTmp.toLatin1().data();
       CMOTObject MOTPicture;
           /* Set file name and format string */
       MOTPicture.strName = strCurObjName;
