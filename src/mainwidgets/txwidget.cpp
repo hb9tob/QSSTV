@@ -229,6 +229,13 @@ void txWidget::slotGetTXParams()
   ui->drmLDPCRateLabel->setEnabled(ldpcEnabled);
   ui->drmTxResolutionComboBox->setEnabled(ldpcEnabled);
   ui->drmResolutionLabel->setEnabled(ldpcEnabled);
+  /* LDPC mode requires long interleave (6-frame codeword) */
+  if (ldpcEnabled)
+    {
+      ui->drmTxInterleaveComboBox->setCurrentIndex(0); /* 0 = Long */
+      drmParams.interleaver = 0;
+    }
+  ui->drmTxInterleaveComboBox->setEnabled(!ldpcEnabled);
   if (drmParams.fecMode != oldFecMode || drmParams.ldpcRate != oldLdpcRate
       || drmParams.resolution != oldResolution)
     {

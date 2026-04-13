@@ -127,21 +127,34 @@ void CMLCEncoder::ProcessDataInternal(CParameter&)
 	/* Channel encoder ------------------------------------------------------ */
 	if (bUseLDPC)
 	{
-		/* Single-frame LDPC with dynamic z: collect all levels' info bits,
-		   single LDPC encode, distribute coded bits back to per-level
-		   buffers for bit interleaving and QAM mapping. */
-		CVector<_DECISION> bicmIn(iTotalInfoBits);
-		CVector<_DECISION> bicmOut(iTotalCodedBits);
+		/* 6-frame LDPC pipeline:
+		   - Each call: store this frame's info bits in accumulator
+		   - Output coded bits from the PREVIOUS 6-frame encode
+		   - Every 6th frame: encode the accumulated block
+		   First 6 frames output zeros (warm-up, overlaps with
+		   symbol interleaver warm-up). */
+
+		/* Store this frame's info bits */
+		int infoOfs = iLDPCFrameCount * iInfoBitsPerFrame;
 		int idx = 0;
 		for (j = 0; j < iLevels; j++)
 			for (i = 0; i < iM[j][0] + iM[j][1]; i++)
-				bicmIn[idx++] = vecEncInBuffer[j][i];
-		BICMEncoder.Encode(bicmIn, bicmOut);
-		/* Distribute coded bits back to per-level buffers */
+				vecLDPCInfoAccum[infoOfs + idx++] = vecEncInBuffer[j][i];
+
+		/* Output coded bits for this frame position from last encode */
+		int codedOfs = iLDPCFrameCount * iCodedBitsPerFrame;
 		idx = 0;
 		for (j = 0; j < iLevels; j++)
 			for (i = 0; i < iNumEncBits; i++)
-				vecEncOutBuffer[j][i] = bicmOut[idx++];
+				vecEncOutBuffer[j][i] = vecLDPCCodedAll[codedOfs + idx++];
+
+		iLDPCFrameCount++;
+		if (iLDPCFrameCount >= iLDPCTotalFrames)
+		{
+			/* All 6 frames collected — encode the big LDPC block */
+			BICMEncoder.Encode(vecLDPCInfoAccum, vecLDPCCodedAll);
+			iLDPCFrameCount = 0;
+		}
 	}
 	else
 	{
@@ -185,20 +198,32 @@ void CMLCEncoder::InitInternal(CParameter& TransmParam)
 	/* Encoder */
 	if (bUseLDPC)
 	{
-		/* Single-frame LDPC with dynamic z: n = total coded bits per frame.
-		   z = n / 24. One LDPC codeword per DRM frame. */
-		iTotalInfoBits = 0;
-		for (i = 0; i < iLevels; i++)
-			iTotalInfoBits += iM[i][0] + iM[i][1];
-		iTotalCodedBits = iLevels * iNumEncBits;
+		/* 6-frame LDPC: single codeword spanning 6 DRM frames (long interleave).
+		   z = total_coded_6frames / 24 — always exact for even N_MUX. */
+		iLDPCTotalFrames = 6;
+		iLDPCFrameCount = 0;
 
-		/* Compute z: round UP so n >= iTotalCodedBits.
-		   Any excess (n - iTotalCodedBits) is handled as extra parity
-		   that simply isn't transmitted (minimal puncturing). */
-		iLDPCz = (iTotalCodedBits + LDPC_BASE_COLS - 1) / LDPC_BASE_COLS;
+		/* Per-frame info and coded bits */
+		iInfoBitsPerFrame = 0;
+		for (i = 0; i < iLevels; i++)
+			iInfoBitsPerFrame += iM[i][0] + iM[i][1];
+		iCodedBitsPerFrame = iLevels * iNumEncBits;
+
+		/* Total across 6 frames */
+		iTotalInfoBits = iInfoBitsPerFrame * iLDPCTotalFrames;
+		iTotalCodedBits = iCodedBitsPerFrame * iLDPCTotalFrames;
+
+		/* Compute z — should divide exactly for 6 frames with even N_MUX */
+		iLDPCz = iTotalCodedBits / LDPC_BASE_COLS;
+		if (iTotalCodedBits % LDPC_BASE_COLS != 0)
+			iLDPCz++; /* round up if not exact (shouldn't happen) */
 		if (iLDPCz < 1) iLDPCz = 1;
 
 		BICMEncoder.Init(TransmParam.iLDPCRate, iLDPCz, iTotalInfoBits);
+
+		/* Allocate multi-frame buffers */
+		vecLDPCInfoAccum.Init(iTotalInfoBits);
+		vecLDPCCodedAll.Init(iTotalCodedBits);
 	}
 	else
 	{

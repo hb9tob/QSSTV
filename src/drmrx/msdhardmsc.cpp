@@ -29,6 +29,11 @@
 extern int ldpc_mode_flag;
 extern int ldpc_rate_index;
 
+/* 6-frame LDPC accumulation state */
+static float bicm_llr_accum[120000]; /* LLRs accumulated across 6 frames (max ~19000 bits) */
+static int ldpc_frame_count = 0;
+static int ldpc_coded_per_frame = 0;
+
 #define ITER_BREAK
 #define CONSIDERING_SNR
 
@@ -472,28 +477,62 @@ int msdhardmsc(double *received_real, double *received_imag, int Lrxdata,
 	    }
 	}			/* end loop level */
 
-      /* BICM LDPC decode: after all levels' LLRs collected, decode in one shot */
+      /* 6-frame LDPC: accumulate LLRs across frames, decode at frame 6 */
       if (ldpc_mode_flag)
 	{
 	  int n_coded = (2 - HMmix) * N;
-	  int total_coded = no_of_levels * n_coded;
-	  int total_info = 0;
-	  for (level = 0; level < no_of_levels; level++)
-	    total_info += (int) L1_real[level] + (int) L2_real[level];
-	  static char bicm_info[6000];
-	  /* Compute z for single-frame LDPC: round UP so n >= total_coded.
-	     Must match TX encoder calculation. */
-	  int ldpc_z = (total_coded + LDPC_BASE_COLS - 1) / LDPC_BASE_COLS;
-	  if (ldpc_z < 1) ldpc_z = 1;
-	  error = ldpc_decode(bicm_llr, total_coded, ldpc_rate_index, ldpc_z,
-			      bicm_info, 50, total_info);
-	  /* Distribute decoded info bits to per-level infoout */
-	  int info_idx = 0;
-	  for (level = 0; level < no_of_levels; level++)
+	  int this_frame_coded = no_of_levels * n_coded;
+
+	  /* Copy this frame's LLRs into accumulator */
+	  ldpc_coded_per_frame = this_frame_coded;
+	  int accum_offset = ldpc_frame_count * this_frame_coded;
+	  for (sample_index = 0; sample_index < this_frame_coded; sample_index++)
+	    bicm_llr_accum[accum_offset + sample_index] = bicm_llr[sample_index];
+
+	  ldpc_frame_count++;
+
+	  if (ldpc_frame_count >= 6)
 	    {
-	      int info_bits = (int) L1_real[level] + (int) L2_real[level];
-	      for (sample_index = 0; sample_index < info_bits; sample_index++)
-		infoout[level][sample_index] = bicm_info[info_idx++];
+	      /* All 6 frames collected — decode the big LDPC block */
+	      int total_coded_6f = 6 * this_frame_coded;
+	      int total_info_per_frame = 0;
+	      for (level = 0; level < no_of_levels; level++)
+		total_info_per_frame += (int) L1_real[level] + (int) L2_real[level];
+	      int total_info_6f = 6 * total_info_per_frame;
+
+	      int ldpc_z = total_coded_6f / LDPC_BASE_COLS;
+	      if (ldpc_z < 1) ldpc_z = 1;
+
+	      static char bicm_info[60000]; /* 6 frames worth of info bits */
+	      error = ldpc_decode(bicm_llr_accum, total_coded_6f, ldpc_rate_index,
+				  ldpc_z, bicm_info, 50, total_info_6f);
+
+	      /* Distribute decoded info bits: last frame's infoout gets the
+		 last frame's portion. Source decoder processes frame by frame,
+		 so we output ALL 6 frames worth into the output now.
+		 The source decoder will receive a burst of 6 frames of data. */
+	      int info_idx = 5 * total_info_per_frame; /* last frame's info */
+	      for (level = 0; level < no_of_levels; level++)
+		{
+		  int info_bits = (int) L1_real[level] + (int) L2_real[level];
+		  for (sample_index = 0; sample_index < info_bits; sample_index++)
+		    infoout[level][sample_index] = bicm_info[info_idx++];
+		}
+
+	      ldpc_frame_count = 0;
+	    }
+	  else
+	    {
+	      /* Not yet 6 frames — zero out infoout, return 0 decoded bits */
+	      for (level = 0; level < no_of_levels; level++)
+		{
+		  int info_bits = (int) L1_real[level] + (int) L2_real[level];
+		  for (sample_index = 0; sample_index < info_bits; sample_index++)
+		    infoout[level][sample_index] = 0;
+		}
+	      /* Signal no data by clearing output — channeldecode will skip */
+	      free(memory_ptr);
+	      return 0;
 	    }
 	}
       PL1 = PL1_imag;
