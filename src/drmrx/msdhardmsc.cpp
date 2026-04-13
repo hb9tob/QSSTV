@@ -20,6 +20,12 @@
 #include <math.h>
 #include <string.h>
 #include "msd_hard_sdc.h"
+#include "turbo_decode.h"
+#include "../drmtx/common/mlc/TurboEncoder.h"
+
+/* Turbo mode flag (set by channeldecode.cpp) */
+extern int ldpc_mode_flag; /* reused: 0=Viterbi, 1=Turbo */
+extern int ldpc_rate_index;
 
 #define ITER_BREAK
 #define CONSIDERING_SNR
@@ -68,6 +74,7 @@ int msdhardmsc(double *received_real, double *received_imag, int Lrxdata,
   int PRBS_reg;
   int HMmix = 0, HMsym = 0;
   int i;
+  static float turbo_llr_buf[12000]; /* LLR buffer for turbo decode */
 
 #ifdef CONSIDERING_SNR
   double *signal_to_noise_ratio;
@@ -414,7 +421,17 @@ int msdhardmsc(double *received_real, double *received_imag, int Lrxdata,
 	     printf("tailpuncturing[... ] = %p\n", tailpuncturing[rp[level]]);
 	     for (i=0; i < 13 ; i++)
 	     printf("inhoud is %d ", tailpuncturing[rp[level]][i]);  */
-	  /* TODO: turbo_decode when fecMode=1 */
+	  if (ldpc_mode_flag)
+	    {
+	      /* Turbo mode: store de-interleaved LLRs, decode after level loop */
+	      int n_coded = (2 - HMmix) * N;
+	      int *deint = Deinterleaver + n_coded * level;
+	      for (sample_index = 0; sample_index < n_coded; sample_index++)
+		turbo_llr_buf[level * n_coded + sample_index] = llr[deint[sample_index]];
+	      error = 0;
+	    }
+	  else
+	    {
 	      error = viterbi_decode(llr, (2 - HMmix) * N,
 				     (level
 				      || (!HMsym
@@ -430,16 +447,41 @@ int msdhardmsc(double *received_real, double *received_imag, int Lrxdata,
 				     Deinterleaver + (2 - HMmix) * N * level,
 				     (int) L1[level] + (int) L2[level] + 6,
 				     rp[level] + 12, viterbi_mem);
+	    }
 
 	  if (error)
 	    {
 	      free(memory_ptr);
-	      printf("msdhardmsc: Error in Viterbi decoder");
+	      printf("msdhardmsc: Error in channel decoder");
 	      return 1;
 	    }
 	}			/* end loop level */
 
-      /* TODO: turbo decode pipeline will go here */
+      /* Turbo decode: all levels collected, decode in one shot */
+      if (ldpc_mode_flag)
+	{
+	  int n_coded = (2 - HMmix) * N;
+	  int total_coded = no_of_levels * n_coded;
+	  int total_info = 0;
+	  for (level = 0; level < no_of_levels; level++)
+	    total_info += (int) L1_real[level] + (int) L2_real[level];
+
+	  char *decoded = new char[total_info + 64];
+	  int iters = turbo_decode(turbo_llr_buf, total_info, ldpc_rate_index,
+				   decoded, 8);
+	  fprintf(stderr, "TURBO-RX: K=%d coded=%d iters=%d\n",
+		  total_info, total_coded, iters);
+
+	  /* Distribute decoded bits to infoout per level */
+	  int idx = 0;
+	  for (level = 0; level < no_of_levels; level++)
+	    {
+	      int info_bits = (int) L1_real[level] + (int) L2_real[level];
+	      for (sample_index = 0; sample_index < info_bits; sample_index++)
+		infoout[level][sample_index] = decoded[idx++];
+	    }
+	  delete[] decoded;
+	}
       PL1 = PL1_imag;
       PL2 = PL2_imag;
       L1 = L1_imag;
@@ -452,7 +494,7 @@ int msdhardmsc(double *received_real, double *received_imag, int Lrxdata,
   diff = 1;
   iteration = 0;
 
-  while (iteration < maxiter)
+  while (!ldpc_mode_flag && iteration < maxiter)
 
     {
       PL1 = PL1_real;
