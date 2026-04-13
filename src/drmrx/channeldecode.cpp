@@ -321,6 +321,7 @@ void channel_decoding(void)
 
     {
       frame_index = (frame_index % 6) + 1;
+      drm_frame_index = frame_index;
       drm_frame_index = frame_index; /* expose to msdhardmsc for LDPC sync */
 
       /* in matlab check for existence of symbol_period & symbols_per_frame */
@@ -408,6 +409,7 @@ void channel_decoding(void)
           channel_transfer_function_buffer[2 * trxfrmbufptr + 1] =channel_transfer_function_buffer[2 * (old_ptr + i) + 1];
         }
       frame_index = identity + 1;
+      drm_frame_index = frame_index;
     }
   interleaver_depth_new = (int) channel_parameters[3];
   msc_mode_new = (int) channel_parameters[4];
