@@ -746,6 +746,9 @@ void channel_decoding(void)
         }
     }
 
+  /* Update drm_frame_index BEFORE MSC decode so msdhardmsc sees it */
+  drm_frame_index = frame_index;
+
   if (msc_parameters_valid != 0)
     {
       for (i = 0; i < lMSC; i++)
