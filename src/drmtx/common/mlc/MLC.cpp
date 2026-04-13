@@ -186,6 +186,11 @@ void CMLCEncoder::ProcessDataInternal(CParameter& TransmParam)
 			for (j = 0; j < iLevels; j++)
 				for (i = 0; i < iNumEncBits; i++)
 					vecEncOutBuffer[j][i] = vecLDPCCodedOut[codedOfs + idx2++];
+			/* Debug: print first bits of level 0 output for this frame */
+			printf("LDPC-TX-OUT pos=%d lv0[0..9]: ", ldpcPos);
+			for (i = 0; i < 10; i++)
+				printf("%d", (int)vecEncOutBuffer[0][i]);
+			printf("\n");
 		}
 
 		/* Encode at last frame of 6-frame block (pos 5) */
