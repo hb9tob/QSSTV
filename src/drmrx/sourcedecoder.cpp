@@ -392,9 +392,25 @@ void sourceDecoder::loadParams(transportBlock *tbPtr,unsigned char paramID,int l
     case 6:
       break;
     case 12:
-      tbPtr->fileName=QString::fromLatin1(currentDataPacket.ba.data()+1).left(len-1);
-      stce= new rxDRMStatusEvent(QString("%1").arg(tbPtr->fileName));
-      QApplication::postEvent( dispatcherPtr, stce );  // Qt will delete it when done
+      {
+        QString rawName=QString::fromLatin1(currentDataPacket.ba.data()+1).left(len-1);
+        // Sanitize filename: replace non-ASCII chars to avoid filesystem issues
+        // (EasyPal on Windows sends CP1252/Latin-1 filenames with accents)
+        QString safeName;
+        for (int ci=0; ci<rawName.length(); ci++)
+          {
+            QChar ch=rawName.at(ci);
+            if (ch.unicode() < 128 && ch != '/' && ch != '\\' && ch != ':' && ch != '*'
+                && ch != '?' && ch != '"' && ch != '<' && ch != '>' && ch != '|')
+              safeName.append(ch);
+            else if (ch.unicode() >= 128)
+              safeName.append('_');
+          }
+        if (safeName.isEmpty()) safeName="received";
+        tbPtr->fileName=safeName;
+        stce= new rxDRMStatusEvent(rawName);
+        QApplication::postEvent( dispatcherPtr, stce );  // Qt will delete it when done
+      }
       break;
     default:
       break;
