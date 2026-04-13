@@ -51,6 +51,8 @@ txWidget::txWidget(QWidget *parent) :  QWidget(parent), ui(new Ui::txWidget)
   connect(ui->drmTxQAMComboBox,SIGNAL(activated(int)),SLOT(slotGetTXParams()));
   connect(ui->drmTxModeComboBox,SIGNAL(activated(int)),SLOT(slotGetTXParams()));
   connect(ui->drmTxReedSolomonComboBox,SIGNAL(activated(int)),SLOT(slotGetTXParams()));
+  connect(ui->drmTxFECModeComboBox,SIGNAL(activated(int)),SLOT(slotGetTXParams()));
+  connect(ui->drmTxLDPCRateComboBox,SIGNAL(activated(int)),SLOT(slotGetTXParams()));
 
   connect(ui->templatesComboBox,SIGNAL(currentIndexChanged(int)),SLOT(slotGetParams()));
   connect(ui->templateCheckBox,SIGNAL(toggled(bool)),SLOT(slotGetParams()));
@@ -213,6 +215,11 @@ void txWidget::slotGetTXParams()
   getIndex(drmParams.qam,ui->drmTxQAMComboBox);
   getIndex(drmParams.robMode,ui->drmTxModeComboBox);
   getIndex(drmParams.reedSolomon,ui->drmTxReedSolomonComboBox);
+  getIndex(drmParams.fecMode,ui->drmTxFECModeComboBox);
+  getIndex(drmParams.ldpcRate,ui->drmTxLDPCRateComboBox);
+  bool ldpcEnabled = (drmParams.fecMode == 1);
+  ui->drmTxLDPCRateComboBox->setEnabled(ldpcEnabled);
+  ui->drmLDPCRateLabel->setEnabled(ldpcEnabled);
   drmParams.callsign=myCallsign;
   updateTxTime();
   txFunctionsPtr->forgetTxFileName();
@@ -257,6 +264,13 @@ void txWidget::setParams()
   setIndex(drmParams.qam,ui->drmTxQAMComboBox);
   setIndex(drmParams.robMode,ui->drmTxModeComboBox);
   setIndex(drmParams.reedSolomon,ui->drmTxReedSolomonComboBox);
+  setIndex(drmParams.fecMode,ui->drmTxFECModeComboBox);
+  setIndex(drmParams.ldpcRate,ui->drmTxLDPCRateComboBox);
+  {
+    bool ldpcEnabled = (drmParams.fecMode == 1);
+    ui->drmTxLDPCRateComboBox->setEnabled(ldpcEnabled);
+    ui->drmLDPCRateLabel->setEnabled(ldpcEnabled);
+  }
   if(compressedSize<MINDRMSIZE) compressedSize=MINDRMSIZE;
   if(compressedSize>MAXDRMSIZE) compressedSize=MAXDRMSIZE;
   setValue(compressedSize,ui->sizeSlider);
@@ -273,6 +287,13 @@ void txWidget::copyProfile(drmTxParams d)
   setIndex(drmParams.qam,ui->drmTxQAMComboBox);
   setIndex(drmParams.robMode,ui->drmTxModeComboBox);
   setIndex(drmParams.reedSolomon,ui->drmTxReedSolomonComboBox);
+  setIndex(drmParams.fecMode,ui->drmTxFECModeComboBox);
+  setIndex(drmParams.ldpcRate,ui->drmTxLDPCRateComboBox);
+  {
+    bool ldpcEnabled = (drmParams.fecMode == 1);
+    ui->drmTxLDPCRateComboBox->setEnabled(ldpcEnabled);
+    ui->drmLDPCRateLabel->setEnabled(ldpcEnabled);
+  }
 }
 
 void txWidget::initView()

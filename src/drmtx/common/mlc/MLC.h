@@ -82,7 +82,10 @@ public:
 protected:
 	CConvEncoder		ConvEncoder[MC_MAX_NUM_LEVELS];
 	CLDPCEncoder		LDPCEncoder[MC_MAX_NUM_LEVELS];
+	CLDPCEncoder		BICMEncoder; /* Single encoder for WiFi-style BICM */
 	bool				bUseLDPC;
+	int					iTotalInfoBits;
+	int					iTotalCodedBits;
 	/* Two different types of interleaver table */
 	CBitInterleaver		BitInterleaver[2];
 	CQAMMapping			QAMMapping;

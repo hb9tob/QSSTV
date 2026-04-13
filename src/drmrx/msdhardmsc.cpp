@@ -75,6 +75,7 @@ int msdhardmsc(double *received_real, double *received_imag, int Lrxdata,
   int PRBS_reg;
   int HMmix = 0, HMsym = 0;
   int i;
+  static float bicm_llr[12000]; /* BICM: de-interleaved LLRs for all levels combined */
 
 
 #ifdef CONSIDERING_SNR
@@ -424,10 +425,24 @@ int msdhardmsc(double *received_real, double *received_imag, int Lrxdata,
 	     printf("inhoud is %d ", tailpuncturing[rp[level]][i]);  */
 	  if (ldpc_mode_flag)
 	    {
-	      error = ldpc_decode(llr, (2 - HMmix) * N, ldpc_rate_index,
-				  infoout[level] + n * ((int) L1_real[level] +
-							(int) L2_real[level]),
-				  50);
+	      /* WiFi-style BICM: store de-interleaved LLRs per level,
+	         decode all together after the level loop */
+	      int n_coded = (2 - HMmix) * N;
+	      int *deint = Deinterleaver + n_coded * level;
+	      for (sample_index = 0; sample_index < n_coded; sample_index++)
+		bicm_llr[level * n_coded + sample_index] = -llr[deint[sample_index]];
+	      /* Update hardpoints from raw LLR signs.
+	       * MSD convention: positive llr → bit 1 (same as viterbi_decode
+	       * which uses -llr for 0-metric, +llr for 1-metric) */
+	      for (sample_index = 0; sample_index < n_coded; sample_index++)
+		{
+		  int pos = deint[sample_index];
+		  int bit = (llr[pos] > 0.0f) ? 1 : 0;
+		  hardpoints_ptr[pos] =
+		    (hardpoints_ptr[pos] & ~(0x1 << level)) |
+		    (bit << level);
+		}
+	      error = 0;
 	    }
 	  else
 	    {
@@ -448,20 +463,35 @@ int msdhardmsc(double *received_real, double *received_imag, int Lrxdata,
 				     rp[level] + 12, viterbi_mem);
 	    }
 
-	  /* debugging pa0mbo
-	     printf("=== na eerste viterbi \n");
-	     for (i=0; i < 2*N ; i++)
-	     {
-	     printf("infoout[0][%d] = %d \n",i,  infoout[0][i]);
-	     }   */
 	  if (error)
-
 	    {
 	      free(memory_ptr);
 	      printf("msdhardmsc: Error in Viterbi decoder");
 	      return 1;
 	    }
 	}			/* end loop level */
+
+      /* BICM LDPC decode: after all levels' LLRs collected, decode in one shot */
+      if (ldpc_mode_flag)
+	{
+	  int n_coded = (2 - HMmix) * N;
+	  int total_coded = no_of_levels * n_coded;
+	  int total_info = 0;
+	  for (level = 0; level < no_of_levels; level++)
+	    total_info += (int) L1_real[level] + (int) L2_real[level];
+	  static char bicm_info[6000];
+	  static char bicm_cw[12000];
+	  error = ldpc_decode(bicm_llr, total_coded, ldpc_rate_index,
+			      bicm_info, 50, total_info, bicm_cw);
+	  /* Distribute decoded info bits to per-level infoout */
+	  int info_idx = 0;
+	  for (level = 0; level < no_of_levels; level++)
+	    {
+	      int info_bits = (int) L1_real[level] + (int) L2_real[level];
+	      for (sample_index = 0; sample_index < info_bits; sample_index++)
+		infoout[level][sample_index] = bicm_info[info_idx++];
+	    }
+	}
       PL1 = PL1_imag;
       PL2 = PL2_imag;
       L1 = L1_imag;
@@ -474,8 +504,10 @@ int msdhardmsc(double *received_real, double *received_imag, int Lrxdata,
   diff = 1;
   iteration = 0;
 
-  /* iterations: */
-  while (iteration < maxiter)
+  /* iterations: LDPC converges in a single pass (first decoding above),
+     so MSD iterations are skipped — the simplified LLR formula used in
+     iterations actually degrades LDPC performance. */
+  while (!ldpc_mode_flag && iteration < maxiter)
 
     {
       PL1 = PL1_real;
@@ -537,11 +569,25 @@ int msdhardmsc(double *received_real, double *received_imag, int Lrxdata,
 	         PL1[0], PL2[0], L1[0], L2[0], L1_real[0], L2_real[0], rp[0]);   */
 	      if (ldpc_mode_flag)
 		{
-		  error = ldpc_decode(llr, (2 - HMmix) * N, ldpc_rate_index,
-				      infoout[level] +
-				      n * ((int) L1_real[level] +
-					   (int) L2_real[level]),
-				      50);
+		  /* This branch should not be reached (MSD iterations disabled
+		     for LDPC), but kept for safety */
+		  int n_coded = (2 - HMmix) * N;
+		  int info_bits = (int) L1_real[level] + (int) L2_real[level];
+		  int *deint = Deinterleaver + n_coded * level;
+		  for (sample_index = 0; sample_index < info_bits; sample_index++)
+		    {
+		      float val = llr[deint[sample_index]];
+		      infoout[level][n * info_bits + sample_index] = (val < 0.0f) ? 1 : 0;
+		    }
+		  for (sample_index = 0; sample_index < n_coded; sample_index++)
+		    {
+		      int pos = deint[sample_index];
+		      int bit = (llr[pos] > 0.0f) ? 1 : 0;
+		      hardpoints_ptr[pos] =
+			(hardpoints_ptr[pos] & ~(0x1 << level)) |
+			(bit << level);
+		    }
+		  error = 0;
 		}
 	      else
 		{

@@ -715,6 +715,18 @@ void channel_decoding(void)
                 }
             }
           Lvspp = 0;
+          /* For LDPC mode, recompute L[1] to match TX encoder:
+             info_bits = (2 * N_MUX * rateNum) / rateDen */
+          if (ldpc_mode_flag)
+            {
+              static const int rateNum[] = {1, 2, 3, 5};
+              static const int rateDen[] = {2, 3, 4, 6};
+              int rIdx = ldpc_rate_index;
+              if (rIdx < 0) rIdx = 0;
+              if (rIdx > 3) rIdx = 3;
+              L[0] = 0;
+              L[1] = (2 * N_MUX * rateNum[rIdx]) / rateDen[rIdx];
+            }
           xin1 = 2 * N1;
           xin2 = 2 * N2;
           if (Part_Deinterleaver != NULL) free(Part_Deinterleaver);

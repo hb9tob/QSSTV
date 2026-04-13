@@ -30,9 +30,8 @@
 #include <QSplashScreen>
 #include <QMessageBox>
 #include <QApplication>
-#include <sys/ioctl.h>
-#include <unistd.h>
-#include <fcntl.h>
+#include <QSerialPort>
+#include <QSerialPortInfo>
 
 
 #define MAXCONFLEN 128
@@ -59,13 +58,19 @@ rigControl::rigControl(int radioIndex)
   catParams.configLabel=QString("radio%1").arg(radioIndex);
   rig_set_debug(RIG_DEBUG_NONE);
   getRadioList();
-  serialP=0;
+  serialPort=nullptr;
   lastFrequency=0.0;
   xmlModes<<"USB"<<"LSB"<<"FM"<<"AM";
 }
 
 rigControl::~rigControl()
 {
+  if(serialPort)
+    {
+      serialPort->close();
+      delete serialPort;
+      serialPort = nullptr;
+    }
   rig_close(my_rig); /* close port */
   rig_cleanup(my_rig); /* if you care about memory */
 }
@@ -383,52 +388,44 @@ bool model_Sort(const rig_caps *caps1,const rig_caps *caps2)
 
 void rigControl::activatePTT(bool b)
 {
-  int modemlines;
   if(catParams.enableSerialPTT)
     {
       if (catParams.pttSerialPort.isEmpty()) return;
-      if(serialP==0)
+      if(!serialPort)
         {
-          serialP=::open(catParams.pttSerialPort.toLatin1().data(),O_RDWR|O_NONBLOCK);
-          if (serialP<=0)
+          serialPort = new QSerialPort(catParams.pttSerialPort);
+          if (!serialPort->open(QIODevice::ReadWrite))
             {
               QMessageBox::warning(txWidgetPtr,"Serial Port Error",
                                    QString("Unable to open serial port %1\ncheck Options->Configuration\n"
                                            "make sure that you have read/write permission\nIf you do not have a serial port,\n"
                                            "then disable -Serial PTT- option in the configuration").arg(catParams.pttSerialPort) ,
                                    QMessageBox::Ok);
+              delete serialPort;
+              serialPort = nullptr;
               return;
             }
-          else
-            {
-              ioctl(serialP,TIOCMGET,&modemlines);
-              if(catParams.activeDTR) modemlines &= ~TIOCM_DTR;
-              if(catParams.activeRTS)modemlines &= ~TIOCM_RTS;
-              if(catParams.nactiveDTR) modemlines |= ~TIOCM_DTR;
-              if(catParams.nactiveRTS)modemlines |= ~TIOCM_RTS;
-              ioctl(serialP,TIOCMSET,&modemlines);
-            }
+          /* Set initial inactive state */
+          if(catParams.activeDTR) serialPort->setDataTerminalReady(false);
+          if(catParams.activeRTS) serialPort->setRequestToSend(false);
+          if(catParams.nactiveDTR) serialPort->setDataTerminalReady(true);
+          if(catParams.nactiveRTS) serialPort->setRequestToSend(true);
         }
-      if(serialP>0)
+      if(serialPort && serialPort->isOpen())
         {
           if(b)
             {
-              ioctl(serialP,TIOCMGET,&modemlines);
-              if(catParams.activeDTR) modemlines |= TIOCM_DTR;
-              if(catParams.activeRTS)modemlines |= TIOCM_RTS;
-              if(catParams.nactiveDTR) modemlines &= ~TIOCM_DTR;
-              if(catParams.nactiveRTS)modemlines &= ~TIOCM_RTS;
-              ioctl(serialP,TIOCMSET,&modemlines);
-              //ioctl(serial,TIOCMBIS,&t);
+              if(catParams.activeDTR) serialPort->setDataTerminalReady(true);
+              if(catParams.activeRTS) serialPort->setRequestToSend(true);
+              if(catParams.nactiveDTR) serialPort->setDataTerminalReady(false);
+              if(catParams.nactiveRTS) serialPort->setRequestToSend(false);
             }
           else
             {
-              ioctl(serialP,TIOCMGET,&modemlines);
-              if(catParams.activeDTR) modemlines &= ~TIOCM_DTR;
-              if(catParams.activeRTS) modemlines &= ~TIOCM_RTS;
-              if(catParams.nactiveDTR) modemlines |= ~TIOCM_DTR;
-              if(catParams.nactiveRTS)modemlines |= ~TIOCM_RTS;
-              ioctl(serialP,TIOCMSET,&modemlines);
+              if(catParams.activeDTR) serialPort->setDataTerminalReady(false);
+              if(catParams.activeRTS) serialPort->setRequestToSend(false);
+              if(catParams.nactiveDTR) serialPort->setDataTerminalReady(true);
+              if(catParams.nactiveRTS) serialPort->setRequestToSend(true);
             }
         }
     }

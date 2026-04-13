@@ -1217,6 +1217,64 @@
            </item>
           </widget>
          </item>
+         <item row="3" column="0">
+          <widget class="QLabel" name="drmFECLabel">
+           <property name="text">
+            <string>FEC</string>
+           </property>
+           <property name="alignment">
+            <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+           </property>
+          </widget>
+         </item>
+         <item row="3" column="1" colspan="2">
+          <widget class="QComboBox" name="drmTxFECModeComboBox">
+           <item>
+            <property name="text">
+             <string>Legacy</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>LDPC+AVIF</string>
+            </property>
+           </item>
+          </widget>
+         </item>
+         <item row="3" column="3">
+          <widget class="QLabel" name="drmLDPCRateLabel">
+           <property name="text">
+            <string>Rate</string>
+           </property>
+           <property name="alignment">
+            <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+           </property>
+          </widget>
+         </item>
+         <item row="3" column="4" colspan="2">
+          <widget class="QComboBox" name="drmTxLDPCRateComboBox">
+           <item>
+            <property name="text">
+             <string>1/2</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>2/3</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>3/4</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>5/6</string>
+            </property>
+           </item>
+          </widget>
+         </item>
         </layout>
        </widget>
       </widget>

@@ -111,7 +111,6 @@ private:
   int calibrationTime;
   double ucalibrationTime;
   double ustartcalibrationTime;
-  struct timespec ts;
   QString lastErrorStr;
   quint64 storedFrames;
   bool prebuf;

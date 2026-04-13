@@ -4,7 +4,12 @@
 #include "imageviewer.h"
 #include "appdefs.h"
 #include "hybridcrypt.h"
-#include <unistd.h>
+#ifdef Q_OS_WIN
+#  include <QThread>
+#  define usleep(us) QThread::usleep(us)
+#else
+#  include <unistd.h>
+#endif
 #include "sstvparam.h"
 
 class ftpThread;

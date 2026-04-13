@@ -24,7 +24,7 @@
 #include "soundconfig.h"
 
 #include "supportfunctions.h"
-#include <unistd.h>
+#include <QThread>
 
 /*
   To generate the frequency, we have to calculate the instant phase jump of the signal
@@ -158,7 +158,7 @@ void synthesizer::write(double sample)
 //  while((!soundIOPtr->txBuffer.put(smp)) && (soundIOPtr->isPlaying()))
      while((!soundIOPtr->txBuffer.put(smp)))
     {
-      usleep(2000);
+      QThread::usleep(2000);
     }
 }
 
@@ -178,7 +178,7 @@ void synthesizer::writeBuffer(quint32 *buffer, int len)
      }
   while((!soundIOPtr->txBuffer.put(buffer,len)) && (soundIOPtr->isPlaying()))
     {
-      usleep(2000);
+      QThread::usleep(2000);
     }
 }
 

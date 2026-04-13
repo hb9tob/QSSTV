@@ -129,40 +129,73 @@ void CLDPCEncoder::encodeBlock(const unsigned char *infoBits,
             /* Only process information columns (bc < baseCols_info) */
             if (bc >= baseCols_info) continue;
 
-            /* XOR the cyclically shifted z-bit sub-block into syndrome */
+            /* XOR the cyclically shifted z-bit sub-block into syndrome.
+             * H[r*z+i, c*z+j] = 1 when j = (i+shift)%z, so the
+             * contribution of column c at check position i is
+             * infoBits[c*z + (i+shift)%z]. */
             for (int j = 0; j < z; j++)
             {
-                int srcIdx = bc * z + j;
-                int dstIdx = br * z + ((j + shift) % z);
+                int srcIdx = bc * z + ((j + shift) % z);
+                int dstIdx = br * z + j;
                 syndrome[dstIdx] ^= infoBits[srcIdx];
             }
         }
     }
 
-    /* Step 2: Resolve parity bits using the parity part of H.
-       The parity columns of the base matrix (columns baseCols_info..23)
-       form a near-dual-diagonal structure.
+    /* Step 2: Resolve parity bits using the 802.11n encoding algorithm.
+     *
+     * The 802.11n parity structure has a "first column" that appears in
+     * 3 check rows, plus a dual-diagonal staircase for the remaining columns.
+     * A naive iterative search for rows with 1 unsolved column FAILS because
+     * no such row exists initially.
+     *
+     * Proper algorithm:
+     * (a) p_0 = XOR of ALL syndrome sub-blocks (derived from the constraint
+     *     that the sum of all check equations must equal zero)
+     * (b) Process rows 0..m-2 in order. At each row, exactly one parity
+     *     column is unsolved (the staircase guarantees this after p_0 is known).
+     *     Solve it by XORing the syndrome with all known parity contributions.
+     */
+    unsigned char *parity = codeBits + m_k;
 
-       For 802.11n rate 1/2, the parity part has:
-         - First column: entry in row 0 (value v0) and row with value v1
-         - Remaining: dual-diagonal with shift 0
-
-       Generic approach: process parity columns left to right.
-       For each base parity column, accumulate contributions from
-       previously determined parity sub-blocks, then solve. */
-
-    /* Build parity column structure */
-    /* For each base parity column (index 0..baseRows-1 mapped to
-       base matrix columns baseCols_info..23), find which rows reference it
-       and with what shift */
-    struct ParityEntry {
-        int baseRow;
-        int shift;
-    };
-    std::vector<std::vector<ParityEntry>> parityColEntries(baseRows);
-
+    /* (a) Compute p_0 = XOR of all syndrome sub-blocks */
+    for (int j = 0; j < z; j++)
+        parity[j] = 0;
     for (int br = 0; br < baseRows; br++)
     {
+        for (int j = 0; j < z; j++)
+            parity[j] ^= syndrome[br * z + j];
+    }
+
+    /* (b) Process rows 0..m-2 in order to solve remaining parity columns */
+    std::vector<bool> solved(baseRows, false);
+    solved[0] = true; /* p_0 is known */
+
+    for (int br = 0; br < baseRows - 1; br++)
+    {
+        /* Find the single unsolved parity column in this row */
+        int solveCol = -1;
+        for (size_t idx = 0; idx < m_rowCols[br].size(); idx++)
+        {
+            int bc = m_rowCols[br][idx];
+            if (bc >= baseCols_info)
+            {
+                int pc = bc - baseCols_info;
+                if (!solved[pc])
+                {
+                    solveCol = pc;
+                    break;
+                }
+            }
+        }
+
+        if (solveCol < 0)
+            continue; /* all parity in this row already solved (shouldn't happen) */
+
+        /* Compute: new_parity = syndrome XOR all known parity contributions */
+        unsigned char temp[LDPC_Z];
+        memcpy(temp, &syndrome[br * z], z);
+
         for (size_t idx = 0; idx < m_rowCols[br].size(); idx++)
         {
             int bc = m_rowCols[br][idx];
@@ -170,120 +203,27 @@ void CLDPCEncoder::encodeBlock(const unsigned char *infoBits,
             if (bc >= baseCols_info)
             {
                 int pc = bc - baseCols_info;
-                ParityEntry pe;
-                pe.baseRow = br;
-                pe.shift = shift;
-                parityColEntries[pc].push_back(pe);
-            }
-        }
-    }
-
-    /* For the 802.11n structure, parity column pc appears in at most
-       2 rows (the diagonal and possibly the first row for the special
-       column). We resolve column by column.
-
-       The dual-diagonal means each parity column pc appears in row pc
-       (with some shift) and row pc-1 (or first row for special structure).
-
-       We use iterative approach: process each parity sub-block,
-       XOR-ing known contributions. */
-
-    /* Initialize parity sub-blocks */
-    unsigned char *parity = codeBits + m_k;
-
-    /* Process first parity column: find the row where this column
-       appears with only this parity unknown */
-    /* For all 802.11n codes, we use a general approach:
-       Process parity columns 0..baseRows-1 sequentially.
-       For column pc, find a row where pc is the ONLY unsolved parity column.
-       Initially all parity columns are unsolved. */
-
-    std::vector<bool> solved(baseRows, false);
-
-    for (int iter = 0; iter < baseRows; iter++)
-    {
-        /* Find a row with exactly one unsolved parity column */
-        int solveRow = -1;
-        int solveCol = -1;
-
-        for (int br = 0; br < baseRows; br++)
-        {
-            int unsolvedCount = 0;
-            int lastUnsolved = -1;
-            for (size_t idx = 0; idx < m_rowCols[br].size(); idx++)
-            {
-                int bc = m_rowCols[br][idx];
-                if (bc >= baseCols_info)
-                {
-                    int pc = bc - baseCols_info;
-                    if (!solved[pc])
-                    {
-                        unsolvedCount++;
-                        lastUnsolved = pc;
-                    }
-                }
-            }
-            if (unsolvedCount == 1)
-            {
-                solveRow = br;
-                solveCol = lastUnsolved;
-                break;
-            }
-        }
-
-        if (solveRow < 0)
-        {
-            /* Fallback: couldn't find a row with 1 unknown.
-               This shouldn't happen with valid 802.11n matrices.
-               Set remaining parity to zero. */
-            break;
-        }
-
-        /* Compute the parity sub-block for column solveCol from row solveRow.
-           The syndrome for this row must be zero:
-           syndrome[row] XOR contributions_from_solved_parity XOR new_parity = 0
-           => new_parity = syndrome[row] XOR contributions_from_solved_parity */
-
-        /* Start with syndrome from info bits */
-        /* Already computed in syndrome[] */
-
-        /* XOR contributions from already-solved parity columns in this row */
-        unsigned char temp[LDPC_Z];
-        memcpy(temp, &syndrome[solveRow * z], z);
-
-        for (size_t idx = 0; idx < m_rowCols[solveRow].size(); idx++)
-        {
-            int bc = m_rowCols[solveRow][idx];
-            int shift = m_rowShifts[solveRow][idx];
-            if (bc >= baseCols_info)
-            {
-                int pc = bc - baseCols_info;
                 if (solved[pc])
                 {
-                    /* XOR the already-solved parity sub-block (shifted) */
+                    /* Contribution at check position j is
+                     * parity[pc*z + (j+shift)%z] */
                     for (int j = 0; j < z; j++)
                     {
-                        int srcIdx = pc * z + j;
-                        int dstJ = (j + shift) % z;
-                        temp[dstJ] ^= parity[srcIdx];
+                        int srcJ = (j + shift) % z;
+                        temp[j] ^= parity[pc * z + srcJ];
                     }
                 }
             }
         }
 
-        /* Now temp[] contains the value we need for the solved parity column,
-           but we need to account for the shift of solveCol in solveRow.
-           If the entry for solveCol in solveRow has shift s, then:
-           sum = ... + P_shifted = 0, where P_shifted[j] = parity[(j+s)%z]
-           So parity[(j+s)%z] = temp[j], i.e., parity[j] = temp[(j-s+z)%z] */
-
+        /* Account for the cyclic shift of the target column */
         int solveShift = 0;
-        for (size_t idx = 0; idx < m_rowCols[solveRow].size(); idx++)
+        for (size_t idx = 0; idx < m_rowCols[br].size(); idx++)
         {
-            int bc = m_rowCols[solveRow][idx];
+            int bc = m_rowCols[br][idx];
             if (bc - baseCols_info == solveCol)
             {
-                solveShift = m_rowShifts[solveRow][idx];
+                solveShift = m_rowShifts[br][idx];
                 break;
             }
         }

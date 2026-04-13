@@ -1,6 +1,6 @@
 QT       += core gui
 
-greaterThan(QT_MAJOR_VERSION, 4): QT += widgets network xml
+greaterThan(QT_MAJOR_VERSION, 4): QT += widgets network xml serialport
 
 CONFIG += c++11
 
@@ -23,12 +23,19 @@ QMAKE_CXXFLAGS_RELEASE += -O3 -Wno-implicit-fallthrough -Wno-psabi
 INCLUDEPATH += config dispatch drmrx drmtx dsp editor logbook mainwidgets rig scope sound sstv utils widgets xmlrpc videocapt
 #QMAKE_LIBDIR += $$[QT_SYSROOT]/usr/local/lib
 
-CONFIG += link_pkgconfig
-PKGCONFIG += libopenjp2 libavif fftw3 libpulse libpulse-simple hamlib
 TARGET = qsstv
-macx {
- # Enable pkg-config (pkg-config is disabled by default in the Qt package for mac)
- QT_CONFIG -= no-pkg-config
+
+win32 {
+  CONFIG += link_pkgconfig
+  PKGCONFIG += libopenjp2 libavif fftw3 portaudio-2 hamlib
+}
+else {
+  CONFIG += link_pkgconfig
+  PKGCONFIG += libopenjp2 libavif fftw3 libpulse libpulse-simple hamlib
+  macx {
+   # Enable pkg-config (pkg-config is disabled by default in the Qt package for mac)
+   QT_CONFIG -= no-pkg-config
+  }
 }
 
 CONFIG += qwt
@@ -196,11 +203,13 @@ SOURCES += main.cpp\
     editor/basegraphicitem.cpp \
     editor/templateviewer.cpp
 
-!macx: SOURCES += sound/soundalsa.cpp \
+unix:!macx: SOURCES += sound/soundalsa.cpp \
     videocapt/cameradialog.cpp \
     videocapt/imagesettings.cpp \
     videocapt/v4l2control.cpp \
     videocapt/videocapture.cpp
+
+win32: SOURCES += sound/soundportaudio.cpp
 
 HEADERS  += mainwindow.h \
     config/baseconfig.h \
@@ -372,11 +381,13 @@ HEADERS  += mainwindow.h \
     editor/basegraphicitem.h \
     editor/templateviewer.h
 
-!macx: HEADERS +=  sound/soundalsa.h \
+unix:!macx: HEADERS +=  sound/soundalsa.h \
     videocapt/cameradialog.h \
     videocapt/imagesettings.h \
     videocapt/v4l2control.h \
     videocapt/videocapture.h
+
+win32: HEADERS += sound/soundportaudio.h
 
 
 FORMS += mainwindow.ui \
@@ -418,7 +429,7 @@ FORMS += mainwindow.ui \
     widgets/testpatternselection.ui \
     editor/templateviewer.ui
 
-!macx: FORMS += videocapt/cameradialog.ui \
+unix:!macx: FORMS += videocapt/cameradialog.ui \
     videocapt/imagesettings.ui
 
 
@@ -597,16 +608,24 @@ DISTFILES += \
 
 INSTALLS += target
 
-LIBS +=  -lpulse \
-         -lpulse-simple \
-         -lfftw3f \
-         -lfftw3 \
-         -lhamlib
+win32 {
+  LIBS += -lportaudio \
+          -lfftw3f \
+          -lfftw3 \
+          -lhamlib
+}
+else {
+  LIBS += -lpulse \
+          -lpulse-simple \
+          -lfftw3f \
+          -lfftw3 \
+          -lhamlib
 
-!macx: LIBS +=  -lasound \
-         -lv4l2 \
-         -lv4lconvert \
-         -lrt
+  !macx: LIBS += -lasound \
+           -lv4l2 \
+           -lv4lconvert \
+           -lrt
+}
 CONFIG(debug ,debug|release){
 
 SOURCES +=      scope/scopeoffset.cpp \
@@ -619,6 +638,6 @@ HEADERS  += scope/scopeoffset.h \
 FORMS   += scope/scopeoffset.ui \
                 scope/plotform.ui
 
-!macx: INCLUDEPATH += /usr/include/qwt /usr/include/qt5/qwt
-!macx: LIBS += -lqwt-qt5
+unix:!macx: INCLUDEPATH += /usr/include/qwt /usr/include/qt5/qwt
+unix:!macx: LIBS += -lqwt-qt5
 }

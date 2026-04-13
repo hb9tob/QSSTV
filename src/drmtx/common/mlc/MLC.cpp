@@ -131,8 +131,21 @@ void CMLCEncoder::ProcessDataInternal(CParameter&)
 	/* Channel encoder ------------------------------------------------------ */
 	if (bUseLDPC)
 	{
+		/* WiFi-style BICM: single LDPC encode over all levels combined.
+		   Concatenate all levels' info → single encode → distribute coded
+		   bits back to per-level buffers for QAM mapping. */
+		CVector<_DECISION> bicmIn(iTotalInfoBits);
+		CVector<_DECISION> bicmOut(iTotalCodedBits);
+		int idx = 0;
 		for (j = 0; j < iLevels; j++)
-			LDPCEncoder[j].Encode(vecEncInBuffer[j], vecEncOutBuffer[j]);
+			for (i = 0; i < iM[j][0] + iM[j][1]; i++)
+				bicmIn[idx++] = vecEncInBuffer[j][i];
+		BICMEncoder.Encode(bicmIn, bicmOut);
+		/* Distribute coded bits: first iNumEncBits to level 0, next to level 1, etc. */
+		idx = 0;
+		for (j = 0; j < iLevels; j++)
+			for (i = 0; i < iNumEncBits; i++)
+				vecEncOutBuffer[j][i] = bicmOut[idx++];
 	}
 	else
 	{
@@ -176,9 +189,12 @@ void CMLCEncoder::InitInternal(CParameter& TransmParam)
 	/* Encoder */
 	if (bUseLDPC)
 	{
+		/* WiFi-style BICM: single LDPC encoder for all levels combined */
+		iTotalInfoBits = 0;
 		for (i = 0; i < iLevels; i++)
-			LDPCEncoder[i].Init(TransmParam.iLDPCRate,
-				iM[i][0] + iM[i][1], iNumEncBits);
+			iTotalInfoBits += iM[i][0] + iM[i][1];
+		iTotalCodedBits = iLevels * iNumEncBits;
+		BICMEncoder.Init(TransmParam.iLDPCRate, iTotalInfoBits, iTotalCodedBits);
 	}
 	else
 	{
