@@ -372,10 +372,6 @@ void CMLC::CalculateParam(CParameter& Parameter, int iNewChannelType)
 			{
 				/* Protection Level A */
 				iCodeRate[i][0] = 0 ;  // hamversion
-
-               /*				iCodeRate[i][0] =
-					iCodRateCombMSC16SM[Parameter.MSCPrLe.iPartA][i]; */
-
 				/* Protection Level B */
 				iCodeRate[i][1] =
 					iCodRateCombMSC16SM[Parameter.MSCPrLe.iPartB][i];
@@ -386,53 +382,42 @@ void CMLC::CalculateParam(CParameter& Parameter, int iNewChannelType)
 
 			iNumEncBits = iN_mux * 2;
 
-
-			/* iN: Number of OFDM-cells of each protection level ------------ */
-			/* N_1 = ceil(8 * X / (2 * RY_Icm * sum(R_p)) * RY_Icm */
-			iN[0] = 0;  // hamversion
-
-/*			iN[0] = (int) ceil(8 * (_REAL) iMSCDataLenPartA / (2 *
-				(_REAL) iCodRateCombMSC16SM[Parameter.MSCPrLe.iPartA][2] *
-				(
-				(_REAL) iPuncturingPatterns[iCodRateCombMSC16SM[
-					Parameter.MSCPrLe.iPartA][0]][0] /
-					iPuncturingPatterns[iCodRateCombMSC16SM[
-					Parameter.MSCPrLe.iPartA][0]][1] +
-				(_REAL) iPuncturingPatterns[iCodRateCombMSC16SM[
-					Parameter.MSCPrLe.iPartA][1]][0] /
-					iPuncturingPatterns[iCodRateCombMSC16SM[
-					Parameter.MSCPrLe.iPartA][1]][1]))) *
-				iCodRateCombMSC16SM[Parameter.MSCPrLe.iPartA][2];
-*/
-			/* Check if result can be possible, if not -> correct. This can
-			   happen, if a wrong number is in "Param.Stream[x].iLenPartA" */
+			iN[0] = 0;
 			if (iN[0] > iN_mux)
 				iN[0] = 0;
-
 			iN[1] = iN_mux - iN[0];
 
-
 			/* iM: Number of bits each level -------------------------------- */
-			for (i = 0; i < 2; i++)
+			if (Parameter.iFECMode == 1)
 			{
-				/* M_p,1 = 2 * N_1 * R_p */
-				iM[i][0] = 0;
-	/*			iM[i][0] = (int) (2 * iN[0] *
-					(_REAL) iPuncturingPatterns[iCodRateCombMSC16SM[
-					Parameter.MSCPrLe.iPartA][i]][0] /
-					iPuncturingPatterns[iCodRateCombMSC16SM[
-					Parameter.MSCPrLe.iPartA][i]][1]);   */
-
-				/* M_p,2 = RX_p * floor((2 * N_2 - 12) / RY_p) */
-				iM[i][1] = 
-					iPuncturingPatterns[iCodRateCombMSC16SM[
-					Parameter.MSCPrLe.iPartB][i]][0] *
-					(int) ((_REAL) (2 * iN[1] - 12) /
-					iPuncturingPatterns[iCodRateCombMSC16SM[
-					Parameter.MSCPrLe.iPartB][i]][1]);
-				// printf("In calcparam iM[%d][0] = %d  iM[%d][1] = %d \n", i, iM[i][0], i, iM[i][1]);
+				/* LDPC mode: total info = total coded * rate, split evenly across levels */
+				static const int rateNum[] = {1, 2, 3, 5};
+				static const int rateDen[] = {2, 3, 4, 6};
+				int rIdx = Parameter.iLDPCRate;
+				if (rIdx < 0) rIdx = 0;
+				if (rIdx > 3) rIdx = 3;
+				int totalInfoBits = (iLevels * iNumEncBits * rateNum[rIdx]) / rateDen[rIdx];
+				for (i = 0; i < 2; i++)
+				{
+					iM[i][0] = 0;
+					iM[i][1] = totalInfoBits / iLevels;
+				}
+				/* Give remainder to last level */
+				iM[1][1] += totalInfoBits - iLevels * (totalInfoBits / iLevels);
 			}
-
+			else
+			{
+				for (i = 0; i < 2; i++)
+				{
+					iM[i][0] = 0;
+					iM[i][1] =
+						iPuncturingPatterns[iCodRateCombMSC16SM[
+						Parameter.MSCPrLe.iPartB][i]][0] *
+						(int) ((_REAL) (2 * iN[1] - 12) /
+						iPuncturingPatterns[iCodRateCombMSC16SM[
+						Parameter.MSCPrLe.iPartB][i]][1]);
+				}
+			}
 
 			/* iL: Number of bits each protection level --------------------- */
 			/* Higher protected part */
@@ -457,9 +442,6 @@ void CMLC::CalculateParam(CParameter& Parameter, int iNewChannelType)
 			{
 				/* Protection Level A */
 				iCodeRate[i][0] = 0;
-/*				iCodeRate[i][0] =
-					iCodRateCombMSC64SM[Parameter.MSCPrLe.iPartA][i]; */
-
 				/* Protection Level B */
 				iCodeRate[i][1] =
 					iCodRateCombMSC64SM[Parameter.MSCPrLe.iPartB][i];
@@ -470,39 +452,42 @@ void CMLC::CalculateParam(CParameter& Parameter, int iNewChannelType)
 
 			iNumEncBits = iN_mux * 2;
 
-
-			/* iN: Number of OFDM-cells of each protection level ------------ */
-			/* N_1 = ceil(8 * X / (2 * RY_Icm * sum(R_p)) * RY_Icm */
 			iN[0] = 0;
-
-			/* Check if result can be possible, if not -> correct. This can
-			   happen, if a wrong number is in "Param.Stream[x].iLenPartA" */
 			if (iN[0] > iN_mux)
 				iN[0] = 0;
-
 			iN[1] = iN_mux - iN[0];
 
-
 			/* iM: Number of bits each level -------------------------------- */
-			for (i = 0; i < 3; i++)
+			if (Parameter.iFECMode == 1)
 			{
-				/* M_p,1 = 2 * N_1 * R_p */
-				iM[i][0] = 0;
-/*				iM[i][0] = (int) (2 * iN[0] *
-					(_REAL) iPuncturingPatterns[iCodRateCombMSC64SM[
-					Parameter.MSCPrLe.iPartA][i]][0] /
-					iPuncturingPatterns[iCodRateCombMSC64SM[
-					Parameter.MSCPrLe.iPartA][i]][1]); */
-
-				/* M_p,2 = RX_p * floor((2 * N_2 - 12) / RY_p) */
-				iM[i][1] = 
-					iPuncturingPatterns[iCodRateCombMSC64SM[
-					Parameter.MSCPrLe.iPartB][i]][0] *
-					(int) ((_REAL) (2 * iN[1] - 12) /
-					iPuncturingPatterns[iCodRateCombMSC64SM[
-					Parameter.MSCPrLe.iPartB][i]][1]); 
+				/* LDPC mode: total info = total coded * rate, split evenly across levels */
+				static const int rateNum[] = {1, 2, 3, 5};
+				static const int rateDen[] = {2, 3, 4, 6};
+				int rIdx = Parameter.iLDPCRate;
+				if (rIdx < 0) rIdx = 0;
+				if (rIdx > 3) rIdx = 3;
+				int totalInfoBits = (iLevels * iNumEncBits * rateNum[rIdx]) / rateDen[rIdx];
+				for (i = 0; i < 3; i++)
+				{
+					iM[i][0] = 0;
+					iM[i][1] = totalInfoBits / iLevels;
+				}
+				/* Give remainder to last level */
+				iM[2][1] += totalInfoBits - iLevels * (totalInfoBits / iLevels);
 			}
-
+			else
+			{
+				for (i = 0; i < 3; i++)
+				{
+					iM[i][0] = 0;
+					iM[i][1] =
+						iPuncturingPatterns[iCodRateCombMSC64SM[
+						Parameter.MSCPrLe.iPartB][i]][0] *
+						(int) ((_REAL) (2 * iN[1] - 12) /
+						iPuncturingPatterns[iCodRateCombMSC64SM[
+						Parameter.MSCPrLe.iPartB][i]][1]);
+				}
+			}
 
 			/* iL: Number of bits each protection level --------------------- */
 			/* Higher protected part */
