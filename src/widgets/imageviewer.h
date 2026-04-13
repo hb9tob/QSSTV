@@ -87,6 +87,7 @@ public:
   void zoom(QPoint centre, int dlevel);
   void save(QString fileName, QString fmt, bool convertRGB, bool source);
   bool copyToBuffer(QByteArray *ba);
+  void clearCompressedData() { compressedImageData.clear(); }
   //  int calcSize(int &sizeRatio);
   uint setSize(int tcommpressSize,bool usesCompression);
   void setAspectMode(Qt::AspectRatioMode mode);

@@ -215,11 +215,17 @@ void txWidget::slotGetTXParams()
   getIndex(drmParams.qam,ui->drmTxQAMComboBox);
   getIndex(drmParams.robMode,ui->drmTxModeComboBox);
   getIndex(drmParams.reedSolomon,ui->drmTxReedSolomonComboBox);
+  int oldFecMode = drmParams.fecMode;
+  int oldLdpcRate = drmParams.ldpcRate;
   getIndex(drmParams.fecMode,ui->drmTxFECModeComboBox);
   getIndex(drmParams.ldpcRate,ui->drmTxLDPCRateComboBox);
   bool ldpcEnabled = (drmParams.fecMode == 1);
   ui->drmTxLDPCRateComboBox->setEnabled(ldpcEnabled);
   ui->drmLDPCRateLabel->setEnabled(ldpcEnabled);
+  if (drmParams.fecMode != oldFecMode || drmParams.ldpcRate != oldLdpcRate)
+    {
+      imageViewerPtr->clearCompressedData();
+    }
   drmParams.callsign=myCallsign;
   updateTxTime();
   txFunctionsPtr->forgetTxFileName();

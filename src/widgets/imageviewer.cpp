@@ -1105,7 +1105,10 @@ int imageViewer::applyTemplate()
           displayedImage=compressedImage;
           int pos;
           pos=imageFileName.lastIndexOf(".",-1);
-          compressedFilename=imageFileName.left(pos)+".jp2";
+          if (drmParams.fecMode == 1)
+            compressedFilename=imageFileName.left(pos)+".avif";
+          else
+            compressedFilename=imageFileName.left(pos)+".jp2";
           statusBarPtr->showMessage("");
           addToLog(QString("Image Compressed to %1 bytes").arg(compressedImageData.size()),LOGIMAG);
           addToLog(QString("displayedImageW,H=%1,%2  compRatio=%3").
