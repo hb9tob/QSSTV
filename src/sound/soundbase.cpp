@@ -311,12 +311,13 @@ void soundBase::stopSoundThread()
 {
   idleRX();
   idleTX();
+  soundDriverOK=false;
   stopThread=true;
+  closeDevices();  // abort streams to unblock any pending read/write
   while(isRunning())
     {
       QApplication::processEvents();
     }
-  closeDevices();
 }
 
 

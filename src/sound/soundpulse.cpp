@@ -181,11 +181,19 @@ void soundPulse::flushPlayback()
 
 void soundPulse::closeDevices()
 {
-  if (sd[0].stream) pa_simple_free(sd[0].stream);
+  int err;
+  if (sd[0].stream)
+    {
+      pa_simple_flush(sd[0].stream, &err);
+      pa_simple_free(sd[0].stream);
+    }
   sd[0].stream=0;
-  if (sd[1].stream) pa_simple_free(sd[1].stream);
+  if (sd[1].stream)
+    {
+      pa_simple_flush(sd[1].stream, &err);
+      pa_simple_free(sd[1].stream);
+    }
   sd[1].stream=0;
-  msleep(1000);
 }
 
 

@@ -245,13 +245,13 @@ void soundPortAudio::closeDevices()
 {
   if (captureStream)
     {
-      Pa_StopStream(captureStream);
+      Pa_AbortStream(captureStream);
       Pa_CloseStream(captureStream);
       captureStream = NULL;
     }
   if (playbackStream)
     {
-      Pa_StopStream(playbackStream);
+      Pa_AbortStream(playbackStream);
       Pa_CloseStream(playbackStream);
       playbackStream = NULL;
     }

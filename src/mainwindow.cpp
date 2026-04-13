@@ -258,7 +258,8 @@ void mainWindow::restartSound(bool inStartUp)
           QMessageBox::critical(this, tr("Soundcard error"),soundIOPtr->getLastError());
         }
     }
-  soundIOPtr->start();
+  if(!soundIOPtr->isRunning())
+    soundIOPtr->start();
 }
 
 
