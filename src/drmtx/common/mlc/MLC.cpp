@@ -406,25 +406,12 @@ void CMLC::CalculateParam(CParameter& Parameter, int iNewChannelType)
 			/* iM: Number of bits each level ------------------------------------ */
 			iM[0][0] = 0;
 
-			if (Parameter.iFECMode == 1)
-			{
-				/* LDPC mode: info bits = coded bits * code_rate
-				   No tail bits needed (unlike convolutional code).
-				   LDPC rate: 0=1/2, 1=2/3, 2=3/4, 3=5/6 */
-				static const int rateNum[] = {1, 2, 3, 5};
-				static const int rateDen[] = {2, 3, 4, 6};
-				int rIdx = Parameter.iLDPCRate;
-				if (rIdx < 0) rIdx = 0;
-				if (rIdx > 3) rIdx = 3;
-				iM[0][1] = (iNumEncBits * rateNum[rIdx]) / rateDen[rIdx];
-			}
-			else
-			{
-				/* M_p,2 = RX_p * floor((2 * N_2 - 12) / RY_p) */
-				iM[0][1] = iPuncturingPatterns[iCodRateCombMSC4SM][0] *
-					(int) ((_REAL) (2 * iN_mux - 12) /
-					iPuncturingPatterns[iCodRateCombMSC4SM][1]);
-			}
+			/* Always use legacy Viterbi formula for iM — LDPC handles
+			   any mismatch via shortening internally */
+			/* M_p,2 = RX_p * floor((2 * N_2 - 12) / RY_p) */
+			iM[0][1] = iPuncturingPatterns[iCodRateCombMSC4SM][0] *
+				(int) ((_REAL) (2 * iN_mux - 12) /
+				iPuncturingPatterns[iCodRateCombMSC4SM][1]);
 
 			/* iL: Number of bits each protection level ------------------------- */
 			/* Higher protected part */
@@ -464,36 +451,16 @@ void CMLC::CalculateParam(CParameter& Parameter, int iNewChannelType)
 				iN[0] = 0;
 			iN[1] = iN_mux - iN[0];
 
-			/* iM: Number of bits each level -------------------------------- */
-			if (Parameter.iFECMode == 1)
+			/* iM: Number of bits each level — always legacy formula */
+			for (i = 0; i < 2; i++)
 			{
-				/* LDPC mode: total info = total coded * rate, split evenly across levels */
-				static const int rateNum[] = {1, 2, 3, 5};
-				static const int rateDen[] = {2, 3, 4, 6};
-				int rIdx = Parameter.iLDPCRate;
-				if (rIdx < 0) rIdx = 0;
-				if (rIdx > 3) rIdx = 3;
-				int totalInfoBits = (iLevels * iNumEncBits * rateNum[rIdx]) / rateDen[rIdx];
-				for (i = 0; i < 2; i++)
-				{
-					iM[i][0] = 0;
-					iM[i][1] = totalInfoBits / iLevels;
-				}
-				/* Give remainder to last level */
-				iM[1][1] += totalInfoBits - iLevels * (totalInfoBits / iLevels);
-			}
-			else
-			{
-				for (i = 0; i < 2; i++)
-				{
-					iM[i][0] = 0;
-					iM[i][1] =
-						iPuncturingPatterns[iCodRateCombMSC16SM[
-						Parameter.MSCPrLe.iPartB][i]][0] *
-						(int) ((_REAL) (2 * iN[1] - 12) /
-						iPuncturingPatterns[iCodRateCombMSC16SM[
-						Parameter.MSCPrLe.iPartB][i]][1]);
-				}
+				iM[i][0] = 0;
+				iM[i][1] =
+					iPuncturingPatterns[iCodRateCombMSC16SM[
+					Parameter.MSCPrLe.iPartB][i]][0] *
+					(int) ((_REAL) (2 * iN[1] - 12) /
+					iPuncturingPatterns[iCodRateCombMSC16SM[
+					Parameter.MSCPrLe.iPartB][i]][1]);
 			}
 
 			/* iL: Number of bits each protection level --------------------- */
@@ -534,36 +501,16 @@ void CMLC::CalculateParam(CParameter& Parameter, int iNewChannelType)
 				iN[0] = 0;
 			iN[1] = iN_mux - iN[0];
 
-			/* iM: Number of bits each level -------------------------------- */
-			if (Parameter.iFECMode == 1)
+			/* iM: Number of bits each level — always legacy formula */
+			for (i = 0; i < 3; i++)
 			{
-				/* LDPC mode: total info = total coded * rate, split evenly across levels */
-				static const int rateNum[] = {1, 2, 3, 5};
-				static const int rateDen[] = {2, 3, 4, 6};
-				int rIdx = Parameter.iLDPCRate;
-				if (rIdx < 0) rIdx = 0;
-				if (rIdx > 3) rIdx = 3;
-				int totalInfoBits = (iLevels * iNumEncBits * rateNum[rIdx]) / rateDen[rIdx];
-				for (i = 0; i < 3; i++)
-				{
-					iM[i][0] = 0;
-					iM[i][1] = totalInfoBits / iLevels;
-				}
-				/* Give remainder to last level */
-				iM[2][1] += totalInfoBits - iLevels * (totalInfoBits / iLevels);
-			}
-			else
-			{
-				for (i = 0; i < 3; i++)
-				{
-					iM[i][0] = 0;
-					iM[i][1] =
-						iPuncturingPatterns[iCodRateCombMSC64SM[
-						Parameter.MSCPrLe.iPartB][i]][0] *
-						(int) ((_REAL) (2 * iN[1] - 12) /
-						iPuncturingPatterns[iCodRateCombMSC64SM[
-						Parameter.MSCPrLe.iPartB][i]][1]);
-				}
+				iM[i][0] = 0;
+				iM[i][1] =
+					iPuncturingPatterns[iCodRateCombMSC64SM[
+					Parameter.MSCPrLe.iPartB][i]][0] *
+					(int) ((_REAL) (2 * iN[1] - 12) /
+					iPuncturingPatterns[iCodRateCombMSC64SM[
+					Parameter.MSCPrLe.iPartB][i]][1]);
 			}
 
 			/* iL: Number of bits each protection level --------------------- */
