@@ -426,7 +426,8 @@ void channel_decoding(void)
 
   /* LDPC/AVIF mode flags from FAC bits 10-13 */
   ldpc_mode_flag = (int) fac_data[10];
-  ldpc_rate_index = (int) fac_data[11] + 2 * (int) fac_data[12];
+  /* FAC Enqueue stores MSB first: bit 11 = MSB, bit 12 = LSB of LDPC rate */
+  ldpc_rate_index = 2 * (int) fac_data[11] + (int) fac_data[12];
   avif_mode_flag = (int) fac_data[13];
 
   // we need 3 consequetive valid fac's to have a complete call
