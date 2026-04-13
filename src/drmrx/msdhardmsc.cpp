@@ -29,10 +29,11 @@
 extern int ldpc_mode_flag;
 extern int ldpc_rate_index;
 
-/* 6-frame LDPC accumulation state */
-static float bicm_llr_accum[120000]; /* LLRs accumulated across 6 frames (max ~19000 bits) */
+/* 6-frame LDPC state */
+static float bicm_llr_accum[120000]; /* LLRs accumulated across 6 frames */
+static char  ldpc_decoded_info[60000]; /* decoded info bits for 6 frames */
+static int   ldpc_decoded_valid = 0;   /* 1 = ldpc_decoded_info has valid data */
 
-/* Frame position within 6-frame LDPC block (set from channeldecode frame_index) */
 extern int drm_frame_index; /* 1..6, set by channeldecode.cpp */
 
 #define ITER_BREAK
@@ -478,33 +479,31 @@ int msdhardmsc(double *received_real, double *received_imag, int Lrxdata,
 	    }
 	}			/* end loop level */
 
-      /* 6-frame LDPC: accumulate LLRs across frames, decode at frame 6 */
+      /* 6-frame LDPC pipeline: accumulate LLRs, decode at frame 5,
+	 output decoded data frame-by-frame from buffer every frame. */
       if (ldpc_mode_flag)
 	{
 	  int n_coded = (2 - HMmix) * N;
 	  int this_frame_coded = no_of_levels * n_coded;
-
-	  /* Copy this frame's LLRs into accumulator.
-	     Position within 6-frame block from DRM frame_index (1..6) */
 	  int ldpc_pos = drm_frame_index - 1; /* 0..5 */
+
+	  /* Accumulate this frame's LLRs */
 	  int accum_offset = ldpc_pos * this_frame_coded;
 	  for (sample_index = 0; sample_index < this_frame_coded; sample_index++)
 	    bicm_llr_accum[accum_offset + sample_index] = bicm_llr[sample_index];
 
-	  if (ldpc_pos == 5) /* last frame of 6-frame block */
+	  if (ldpc_pos == 5)
 	    {
-	      /* All 6 frames collected — decode N blocks of z=81 (n=1944).
+	      /* Decode N blocks of z=81 (n=1944).
 		 Layout: [PRBS filler | block0 | block1 | ...] */
 	      int total_coded_6f = 6 * this_frame_coded;
 	      int ldpc_z = 81;
-	      int ldpc_n = ldpc_n_from_z(ldpc_z); /* 1944 */
+	      int ldpc_n = ldpc_n_from_z(ldpc_z);
 	      int ldpc_k = ldpc_k_from_z(ldpc_z, ldpc_rate_index);
 	      int num_blocks = total_coded_6f / ldpc_n;
 	      int filler_bits = total_coded_6f - num_blocks * ldpc_n;
 
-	      static char bicm_info[60000];
 	      int info_idx = 0;
-
 	      for (int blk = 0; blk < num_blocks; blk++)
 		{
 		  float *block_llr = bicm_llr_accum + filler_bits + blk * ldpc_n;
@@ -512,27 +511,31 @@ int msdhardmsc(double *received_real, double *received_imag, int Lrxdata,
 		  ldpc_decode(block_llr, ldpc_n, ldpc_rate_index, ldpc_z,
 			      block_info, 50, ldpc_k);
 		  for (int bi = 0; bi < ldpc_k && info_idx < 60000; bi++)
-		    bicm_info[info_idx++] = block_info[bi];
+		    ldpc_decoded_info[info_idx++] = block_info[bi];
 		}
+	      ldpc_decoded_valid = 1;
+	    }
 
-	      /* Output the LAST frame's portion of decoded info bits */
-	      int total_info_per_frame = 0;
-	      for (level = 0; level < no_of_levels; level++)
-		total_info_per_frame += (int) L1_real[level] + (int) L2_real[level];
+	  /* Output this frame's portion from the decoded buffer.
+	     Pipeline: first 6 frames output zeros (warm-up), then
+	     each frame outputs its portion from the last decode. */
+	  int total_info_per_frame = 0;
+	  for (level = 0; level < no_of_levels; level++)
+	    total_info_per_frame += (int) L1_real[level] + (int) L2_real[level];
 
-	      int out_idx = 5 * total_info_per_frame;
+	  if (ldpc_decoded_valid)
+	    {
+	      int out_idx = ldpc_pos * total_info_per_frame;
 	      for (level = 0; level < no_of_levels; level++)
 		{
 		  int info_bits = (int) L1_real[level] + (int) L2_real[level];
 		  for (sample_index = 0; sample_index < info_bits; sample_index++)
-		    infoout[level][sample_index] = bicm_info[out_idx++];
+		    infoout[level][sample_index] = ldpc_decoded_info[out_idx++];
 		}
-
 	    }
 	  else
 	    {
-	      /* Intermediate frame: zero infoout but DON'T return early.
-		 Let the rest of msdhardmsc run for proper state updates. */
+	      /* No decoded data yet (warm-up) */
 	      for (level = 0; level < no_of_levels; level++)
 		{
 		  int info_bits = (int) L1_real[level] + (int) L2_real[level];
