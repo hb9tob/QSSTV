@@ -280,6 +280,7 @@ int ldpc_decode(float *llr, int n_coded_bits, int ldpc_rate,
 
     int infoIdx = 0;
     int llrIdx = 0;
+    int cwOutIdx = 0;
 
     for (int blk = 0; blk < numBlocks; blk++)
     {
@@ -316,11 +317,9 @@ int ldpc_decode(float *llr, int n_coded_bits, int ldpc_rate,
         /* Output full codeword hard decisions for hardpoints update */
         if (cw_hard)
         {
-            int cwIdx = blk * codedThisBlock; /* position in flat output */
-            for (int i = 0; i < codedThisBlock; i++)
+            for (int i = 0; i < codedThisBlock && cwOutIdx < n_coded_bits; i++)
             {
-                if (cwIdx + i < n_coded_bits)
-                    cw_hard[cwIdx + i] = (graph.varBelief[i] < 0.0f) ? 1 : 0;
+                cw_hard[cwOutIdx++] = (graph.varBelief[i] < 0.0f) ? 1 : 0;
             }
         }
     }
