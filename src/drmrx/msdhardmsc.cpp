@@ -33,8 +33,8 @@ extern int ldpc_rate_index;
 static float bicm_llr_accum[120000]; /* LLRs accumulated across 6 frames */
 static char  ldpc_decoded_info[60000]; /* decoded info bits for 6 frames */
 static int   ldpc_decoded_valid = 0;   /* 1 = ldpc_decoded_info has valid data */
-
-extern int drm_frame_index; /* 1..6, set by channeldecode.cpp */
+static int   ldpc_rx_sf_parity = 0;   /* superframe parity tracker (0/1) */
+static int   ldpc_rx_last_identity = -1; /* to detect superframe boundary */
 
 #define ITER_BREAK
 #define CONSIDERING_SNR
@@ -485,10 +485,18 @@ int msdhardmsc(double *received_real, double *received_imag, int Lrxdata,
 	{
 	  int n_coded = (2 - HMmix) * N;
 	  int this_frame_coded = no_of_levels * n_coded;
-	  int ldpc_pos = drm_frame_index - 1; /* 0..5 */
+	  /* Compute LDPC position using FAC identity + superframe parity,
+	     same formula as TX: pos = sfParity * 3 + identity.
+	     Toggle parity when identity wraps (identity 0 after identity 2). */
+	  extern int drm_fac_identity;
+	  int fac_id = drm_fac_identity; /* 0, 1, or 2 within superframe */
+	  if (fac_id == 0 && ldpc_rx_last_identity == 2)
+	    ldpc_rx_sf_parity ^= 1; /* new superframe → toggle parity */
+	  ldpc_rx_last_identity = fac_id;
+	  int ldpc_pos = ldpc_rx_sf_parity * 3 + fac_id; /* 0..5 */
 
-	  printf("LDPC-RX: pos=%d coded_per_frame=%d levels=%d valid=%d\n",
-		 ldpc_pos, this_frame_coded, no_of_levels, ldpc_decoded_valid);
+	  printf("LDPC-RX: pos=%d fac_id=%d sfP=%d coded=%d valid=%d\n",
+		 ldpc_pos, fac_id, ldpc_rx_sf_parity, this_frame_coded, ldpc_decoded_valid);
 
 	  /* Accumulate this frame's LLRs */
 	  int accum_offset = ldpc_pos * this_frame_coded;
@@ -516,6 +524,7 @@ int msdhardmsc(double *received_real, double *received_imag, int Lrxdata,
 		  for (int bi = 0; bi < ldpc_k && info_idx < 60000; bi++)
 		    ldpc_decoded_info[info_idx++] = block_info[bi];
 		}
+
 	      printf("LDPC-DECODE: blocks=%d filler=%d k=%d total_info_decoded=%d\n",
 		     num_blocks, filler_bits, ldpc_k, info_idx);
 	      ldpc_decoded_valid = 1;

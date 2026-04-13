@@ -136,6 +136,8 @@ void CMLCEncoder::ProcessDataInternal(CParameter& TransmParam)
 		   iFrameIDTransm = 0,1,2 within superframe.
 		   LDPC pos = superframe_parity*3 + iFrameIDTransm → 0..5 */
 		int ldpcPos = iLDPCSuperframeParity * 3 + TransmParam.iFrameIDTransm;
+		printf("LDPC-TX: frameID=%d sfParity=%d ldpcPos=%d\n",
+		       TransmParam.iFrameIDTransm, iLDPCSuperframeParity, ldpcPos);
 
 		/* Store this frame's info bits at the correct position */
 		int infoOfs = ldpcPos * iInfoBitsPerFrame;

@@ -79,6 +79,7 @@ int ldpc_mode_flag = 0;    /* 0=Viterbi, 1=LDPC */
 int ldpc_rate_index = 0;   /* 0=1/2, 1=2/3, 2=3/4, 3=5/6 */
 int avif_mode_flag = 0;    /* 0=JP2, 1=AVIF */
 int drm_frame_index = 0;   /* 1..6 position within 2-superframe LDPC block */
+int drm_fac_identity = 0;  /* FAC identity: 0-2 maps to frame within superframe */
 
 char getfacchar(double *);
 
@@ -396,6 +397,7 @@ void channel_decoding(void)
    /* frame alignment */
   temp = 2.0 * channel_parameters[0] + channel_parameters[1];
   identity = (int) temp % 3;
+  drm_fac_identity = identity; /* expose to msdhardmsc */
   if (identity != ((frame_index - 1) % 3))
       {
       old_ptr = transmission_frame_buffer_wptr;
