@@ -152,6 +152,7 @@ static int decode_block(ldpc_graph_t *g, float *blockLLR, char *infoOut,
         memset(g->c2vMsg[ci], 0, g->checkDegree[ci] * sizeof(float));
 
     /* Iterative decoding */
+    int syndromeOK = 0;
     for (int iter = 0; iter < max_iter; iter++)
     {
         /* Check-node update (normalized min-sum) */
@@ -188,7 +189,7 @@ static int decode_block(ldpc_graph_t *g, float *blockLLR, char *infoOut,
         }
 
         /* Check syndrome */
-        int syndromeOK = 1;
+        syndromeOK = 1;
         for (int ci = 0; ci < g->numChecks; ci++)
         {
             int deg = g->checkDegree[ci];
@@ -201,8 +202,14 @@ static int decode_block(ldpc_graph_t *g, float *blockLLR, char *infoOut,
             if (parity) { syndromeOK = 0; break; }
         }
 
-        if (syndromeOK) break;
+        if (syndromeOK)
+        {
+            printf("LDPC: converged at iter %d\n", iter);
+            break;
+        }
     }
+    if (!syndromeOK)
+        printf("LDPC: NOT converged after %d iters\n", max_iter);
 
     /* Extract info bits (first k positions, but only n_info actual data) */
     int outBits = (n_info < k) ? n_info : k;

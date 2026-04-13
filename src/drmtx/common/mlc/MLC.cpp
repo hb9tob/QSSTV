@@ -39,7 +39,7 @@
 /******************************************************************************\
 * MLC-encoder                                                                  *
 \******************************************************************************/
-void CMLCEncoder::ProcessDataInternal(CParameter&)
+void CMLCEncoder::ProcessDataInternal(CParameter& TransmParam)
 {
 	int	i, j;
 	int iElementCounter;
@@ -132,42 +132,29 @@ void CMLCEncoder::ProcessDataInternal(CParameter&)
 		   legacy run-in), encode immediately → valid LDPC from frame 0.
 		   Subsequent periods: real data from 6 frames. */
 
-		/* Store this frame's info bits */
-		int infoOfs = iLDPCFrameCount * iInfoBitsPerFrame;
+		/* Use DRM frame ID for LDPC position (synchronized with RX).
+		   iFrameIDTransm = 0,1,2 within superframe.
+		   LDPC pos = superframe_parity*3 + iFrameIDTransm → 0..5 */
+		int ldpcPos = iLDPCSuperframeParity * 3 + TransmParam.iFrameIDTransm;
+
+		/* Store this frame's info bits at the correct position */
+		int infoOfs = ldpcPos * iInfoBitsPerFrame;
 		int idx = 0;
 		for (j = 0; j < iLevels; j++)
 			for (i = 0; i < iM[j][0] + iM[j][1]; i++)
 				vecLDPCInfoAccum[infoOfs + idx++] = vecEncInBuffer[j][i];
 
-		/* First frame ever: repeat this frame's data to all 6 positions
-		   and encode immediately (run-in style) */
-		if (iLDPCFrameCount == 0 && !bLDPCFirstEncDone)
+		/* First frame ever: repeat to all 6 positions (run-in) */
+		if (ldpcPos == 0 && !bLDPCFirstEncDone)
 		{
 			for (int f = 1; f < iLDPCTotalFrames; f++)
 				for (i = 0; i < iInfoBitsPerFrame; i++)
 					vecLDPCInfoAccum[f * iInfoBitsPerFrame + i] =
 						vecLDPCInfoAccum[i];
-			/* Encode immediately */
-			int ldpcK = BICMEncoder.getK();
-			int ldpcN = BICMEncoder.getN();
-			int codedIdx = iLDPCFillerBits;
-			int infoIdx2 = 0;
-			for (int blk = 0; blk < iLDPCNumBlocks; blk++)
-			{
-				CVector<_DECISION> blkIn(ldpcK);
-				CVector<_DECISION> blkOut(ldpcN);
-				for (i = 0; i < ldpcK; i++)
-					blkIn[i] = (infoIdx2 < iTotalInfoBits) ?
-						vecLDPCInfoAccum[infoIdx2++] : 0;
-				BICMEncoder.Encode(blkIn, blkOut);
-				for (i = 0; i < ldpcN && codedIdx < iTotalCodedBits; i++)
-					vecLDPCCodedAll[codedIdx++] = blkOut[i];
-			}
-			bLDPCFirstEncDone = true;
 		}
 
-		iLDPCFrameCount++;
-		if (iLDPCFrameCount >= iLDPCTotalFrames)
+		/* Encode at last frame of 6-frame block (pos 5) */
+		if (ldpcPos == iLDPCTotalFrames - 1)
 		{
 			/* Encode N LDPC blocks from accumulated 6 frames.
 			   Layout: [PRBS filler | blk0 | blk1 | ...] */
@@ -188,14 +175,16 @@ void CMLCEncoder::ProcessDataInternal(CParameter&)
 					vecLDPCCodedAll[codedIdx++] = blkOut[i];
 			}
 
-			iLDPCFrameCount = 0;
+			bLDPCFirstEncDone = true;
 		}
 
-		/* Output coded bits for this frame from current encode */
+		/* Toggle superframe parity at end of each superframe */
+		if (TransmParam.iFrameIDTransm == 2)
+			iLDPCSuperframeParity ^= 1;
+
+		/* Output coded bits for THIS frame position */
 		{
-			int outFrame = (iLDPCFrameCount == 0) ? (iLDPCTotalFrames - 1)
-			                                       : (iLDPCFrameCount - 1);
-			int codedOfs = outFrame * iCodedBitsPerFrame;
+			int codedOfs = ldpcPos * iCodedBitsPerFrame;
 			int idx2 = 0;
 			for (j = 0; j < iLevels; j++)
 				for (i = 0; i < iNumEncBits; i++)
