@@ -495,8 +495,9 @@ int msdhardmsc(double *received_real, double *received_imag, int Lrxdata,
 	  ldpc_rx_last_identity = fac_id;
 	  int ldpc_pos = ldpc_rx_sf_parity * 3 + fac_id; /* 0..5 */
 
-	  printf("LDPC-RX: pos=%d fac_id=%d sfP=%d coded=%d valid=%d\n",
-		 ldpc_pos, fac_id, ldpc_rx_sf_parity, this_frame_coded, ldpc_decoded_valid);
+	  printf("LDPC-RX: pos=%d fac_id=%d sfP=%d coded=%d valid=%d llr[0..3]=%.1f,%.1f,%.1f,%.1f\n",
+		 ldpc_pos, fac_id, ldpc_rx_sf_parity, this_frame_coded, ldpc_decoded_valid,
+		 bicm_llr[0], bicm_llr[1], bicm_llr[2], bicm_llr[3]);
 
 	  /* Accumulate this frame's LLRs */
 	  int accum_offset = ldpc_pos * this_frame_coded;
@@ -513,6 +514,12 @@ int msdhardmsc(double *received_real, double *received_imag, int Lrxdata,
 	      int ldpc_k = ldpc_k_from_z(ldpc_z, ldpc_rate_index);
 	      int num_blocks = total_coded_6f / ldpc_n;
 	      int filler_bits = total_coded_6f - num_blocks * ldpc_n;
+
+	      /* Print first 20 LLR signs of block 0 for comparison with TX */
+	      printf("LDPC-RX-BITS[0..19]: ");
+	      for (int db = 0; db < 20; db++)
+		printf("%d", bicm_llr_accum[filler_bits + db] < 0 ? 1 : 0);
+	      printf("\n");
 
 	      int info_idx = 0;
 	      for (int blk = 0; blk < num_blocks; blk++)

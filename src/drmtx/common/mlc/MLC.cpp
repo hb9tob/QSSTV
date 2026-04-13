@@ -31,6 +31,7 @@
 
 #include "MLC.h"
 #include "LDPCTables.h"
+#include "../../../drmrx/ldpc_decode.h"
 
 #define NUM_FAC_CELLS 45
 
@@ -174,9 +175,22 @@ void CMLCEncoder::ProcessDataInternal(CParameter& TransmParam)
 						vecLDPCInfoAccum[infoIdx2++] : 0;
 				BICMEncoder.Encode(blkIn, blkOut);
 				for (i = 0; i < ldpcN && codedIdx < iTotalCodedBits; i++)
-					vecLDPCCodedAll[codedIdx++] = blkOut[i];
+					vecLDPCCodedNew[codedIdx++] = blkOut[i];
+				/* Print first 20 coded bits of block 0 for comparison with RX */
+				if (blk == 0)
+				{
+					printf("LDPC-TX-CODED[0..19]: ");
+					for (i = 0; i < 20; i++)
+						printf("%d", (int)vecLDPCCodedNew[iLDPCFillerBits + i]);
+					printf("\n");
+				}
 			}
 
+			/* Copy new encode to output buffer.
+			   Next cycle reads from vecLDPCCodedOut while
+			   vecLDPCCodedNew gets overwritten at next encode. */
+			for (i = 0; i < iTotalCodedBits; i++)
+				vecLDPCCodedOut[i] = vecLDPCCodedNew[i];
 			bLDPCFirstEncDone = true;
 		}
 
@@ -184,13 +198,13 @@ void CMLCEncoder::ProcessDataInternal(CParameter& TransmParam)
 		if (TransmParam.iFrameIDTransm == 2)
 			iLDPCSuperframeParity ^= 1;
 
-		/* Output coded bits for THIS frame position */
+		/* Output coded bits for THIS frame from the READ buffer */
 		{
 			int codedOfs = ldpcPos * iCodedBitsPerFrame;
 			int idx2 = 0;
 			for (j = 0; j < iLevels; j++)
 				for (i = 0; i < iNumEncBits; i++)
-					vecEncOutBuffer[j][i] = vecLDPCCodedAll[codedOfs + idx2++];
+					vecEncOutBuffer[j][i] = vecLDPCCodedOut[codedOfs + idx2++];
 		}
 	}
 	else
@@ -266,21 +280,20 @@ void CMLCEncoder::InitInternal(CParameter& TransmParam)
 			int ldpcK = ldpc_k_from_z(iLDPCz, TransmParam.iLDPCRate);
 			BICMEncoder.Init(TransmParam.iLDPCRate, iLDPCz, ldpcK);
 
-			/* Allocate multi-frame buffers */
+			/* Allocate multi-frame double buffers */
 			vecLDPCInfoAccum.Init(iTotalInfoBits);
-			vecLDPCCodedAll.Init(iTotalCodedBits);
+			vecLDPCCodedNew.Init(iTotalCodedBits);
+			vecLDPCCodedOut.Init(iTotalCodedBits);
 
-			/* Pre-fill ENTIRE coded buffer with PRBS.
-			   Filler area (start) stays PRBS permanently.
-			   LDPC area gets overwritten at first encode.
-			   Prevents all-zeros warm-up (correlated subcarriers). */
+			/* Pre-fill both coded buffers with PRBS */
 			{
 				uint32_t reg = ~(uint32_t)0;
 				for (i = 0; i < iTotalCodedBits; i++)
 				{
 					unsigned char bit = ((reg >> 4) ^ (reg >> 8)) & 1;
 					reg = (reg << 1) | bit;
-					vecLDPCCodedAll[i] = bit;
+					vecLDPCCodedNew[i] = bit;
+					vecLDPCCodedOut[i] = bit;
 				}
 			}
 		}

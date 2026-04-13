@@ -100,7 +100,8 @@ protected:
 	int					iLDPCSuperframeParity; /* 0 or 1: even/odd superframe */
 	/* Multi-frame LDPC buffers */
 	CVector<_DECISION>	vecLDPCInfoAccum;  /* accumulated info bits across frames */
-	CVector<_DECISION>	vecLDPCCodedAll;   /* all coded bits from single LDPC encode */
+	CVector<_DECISION>	vecLDPCCodedOut;   /* coded bits being OUTPUT (read buffer) */
+	CVector<_DECISION>	vecLDPCCodedNew;   /* coded bits being ENCODED (write buffer) */
 
 	/* Two different types of interleaver table */
 	CBitInterleaver		BitInterleaver[2];
