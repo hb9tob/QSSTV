@@ -1,9 +1,9 @@
 /******************************************************************************\
- * QSSTV - LDPC Decoder for IEEE 802.11n codes
+ * QSSTV - LDPC Decoder for QC-LDPC codes (802.11n base matrices)
  *
  * Description:
- *   Normalized min-sum belief propagation decoder for 802.11n LDPC codes.
- *   Block size n=648, expansion factor z=27.
+ *   Normalized min-sum belief propagation decoder with runtime z.
+ *   Single codeword per interleaver period.
  *   Supports rates 1/2, 2/3, 3/4, 5/6.
  *
  ******************************************************************************
@@ -32,59 +32,46 @@
 /* Clamp LLR to prevent numerical issues */
 #define LLR_CLAMP 50.0f
 
-/*
- * Sparse representation of the expanded H matrix.
- * We store, for each check node, the list of connected variable nodes
- * and the corresponding cyclic shift.
- */
 typedef struct {
-    int numChecks;          /* number of check nodes = nk */
-    int numVars;            /* number of variable nodes = n */
-    int k;                  /* info bits per block */
-    int *checkDegree;       /* degree of each check node */
-    int **checkToVar;       /* checkToVar[i][j] = j-th variable node of check i */
-    float **c2vMsg;         /* check-to-variable messages */
-    float *varBelief;       /* current belief (LLR + sum of incoming c2v) */
-    float *channelLLR;      /* saved channel LLR */
+    int numChecks;
+    int numVars;
+    int k;
+    int z;
+    int *checkDegree;
+    int **checkToVar;
+    float **c2vMsg;
+    float *varBelief;
+    float *channelLLR;
 } ldpc_graph_t;
 
-static void graph_init(ldpc_graph_t *g, int rate)
+static void graph_init(ldpc_graph_t *g, int rate, int z)
 {
     int baseRows = ldpc_base_rows[rate];
     int baseCols = LDPC_BASE_COLS;
-    int baseCols_info = baseCols - baseRows;
-    int z = LDPC_Z;
     const int *baseH = ldpc_base_matrix[rate];
 
+    g->z = z;
     g->numChecks = baseRows * z;
-    g->numVars = LDPC_N;
-    g->k = ldpc_k[rate];
+    g->numVars = LDPC_BASE_COLS * z;
+    g->k = (LDPC_BASE_COLS - baseRows) * z;
 
-    /* Count edges per check node (base row) */
     g->checkDegree = (int *)calloc(g->numChecks, sizeof(int));
     g->checkToVar = (int **)calloc(g->numChecks, sizeof(int *));
     g->c2vMsg = (float **)calloc(g->numChecks, sizeof(float *));
 
-    /* First pass: count degrees */
+    /* Count degrees */
     for (int br = 0; br < baseRows; br++)
     {
         int deg = 0;
         for (int bc = 0; bc < baseCols; bc++)
-        {
-            if (baseH[br * baseCols + bc] >= 0)
-                deg++;
-        }
-        /* Each base check node expands to z check nodes, each with same degree */
+            if (baseH[br * baseCols + bc] >= 0) deg++;
         for (int sub = 0; sub < z; sub++)
-        {
             g->checkDegree[br * z + sub] = deg;
-        }
     }
 
-    /* Second pass: fill adjacency lists */
+    /* Fill adjacency lists */
     for (int br = 0; br < baseRows; br++)
     {
-        /* Collect non-negative entries for this base row */
         int entries[LDPC_BASE_COLS];
         int shifts[LDPC_BASE_COLS];
         int deg = 0;
@@ -95,12 +82,11 @@ static void graph_init(ldpc_graph_t *g, int rate)
             if (val >= 0)
             {
                 entries[deg] = bc;
-                shifts[deg] = val;
+                shifts[deg] = val % z; /* mod z for runtime expansion */
                 deg++;
             }
         }
 
-        /* Expand to z sub-check-nodes */
         for (int sub = 0; sub < z; sub++)
         {
             int ci = br * z + sub;
@@ -108,17 +94,12 @@ static void graph_init(ldpc_graph_t *g, int rate)
             g->c2vMsg[ci] = (float *)calloc(deg, sizeof(float));
 
             for (int d = 0; d < deg; d++)
-            {
-                int bc = entries[d];
-                int shift = shifts[d];
-                /* Variable node index: bc * z + (sub + shift) % z */
-                g->checkToVar[ci][d] = bc * z + ((sub + shift) % z);
-            }
+                g->checkToVar[ci][d] = entries[d] * z + ((sub + shifts[d]) % z);
         }
     }
 
-    g->varBelief = (float *)calloc(LDPC_N, sizeof(float));
-    g->channelLLR = (float *)calloc(LDPC_N, sizeof(float));
+    g->varBelief = (float *)calloc(g->numVars, sizeof(float));
+    g->channelLLR = (float *)calloc(g->numVars, sizeof(float));
 }
 
 static void graph_free(ldpc_graph_t *g)
@@ -136,48 +117,39 @@ static void graph_free(ldpc_graph_t *g)
 }
 
 /*
- * Run min-sum BP decoding on a single block.
- * Returns 1 if decoding succeeded (syndrome = 0), 0 otherwise.
+ * Run min-sum BP decoding on the single codeword.
+ * n_coded = actual received coded bits (may be < numVars if frame doesn't fill perfectly)
+ * n_info = actual data bits expected (before shortening)
  */
 static int decode_block(ldpc_graph_t *g, float *blockLLR, char *infoOut,
                          int max_iter, int n_coded, int n_info)
 {
-    int n = LDPC_N;
-    int z = LDPC_Z;
+    int n = g->numVars;
+    int k = g->k;
 
-    /* Initialize channel LLR (clamp for numerical stability)
-     *
-     * Three regions in the codeword [info(k) | parity(n-k)]:
-     *   0..n_coded-1       : received from channel (actual LLR)
-     *   n_coded..k-1       : shortening zeros beyond received window
-     *                        → set to +LLR_CLAMP (known to be 0)
-     *   k..n-1             : punctured parity → set to 0 (erasure)
-     *
-     * Within the received window, positions n_info..k-1 are also
-     * shortening zeros, but their channel LLR should already be
-     * positive in a clean channel. We trust the channel value there.
+    /* Initialize channel LLR:
+     *   0..n_coded-1:  received from channel
+     *   n_coded..k-1:  shortening (known PRBS, approximate as +LLR_CLAMP)
+     *   k..n-1:        parity (all received, no puncturing)
      */
     for (int i = 0; i < n; i++)
     {
         float val;
         if (i < n_coded)
             val = blockLLR[i];
-        else if (i < g->k)
-            val = LLR_CLAMP;   /* shortening: known zero */
+        else if (i < k)
+            val = LLR_CLAMP;   /* shortening: known */
         else
-            val = 0.0f;        /* punctured parity: unknown */
+            val = 0.0f;        /* should not happen with zero puncturing */
         if (val > LLR_CLAMP) val = LLR_CLAMP;
         if (val < -LLR_CLAMP) val = -LLR_CLAMP;
         g->channelLLR[i] = val;
         g->varBelief[i] = val;
     }
 
-    /* Initialize c2v messages to zero */
+    /* Initialize c2v messages */
     for (int ci = 0; ci < g->numChecks; ci++)
-    {
-        int deg = g->checkDegree[ci];
-        memset(g->c2vMsg[ci], 0, deg * sizeof(float));
-    }
+        memset(g->c2vMsg[ci], 0, g->checkDegree[ci] * sizeof(float));
 
     /* Iterative decoding */
     for (int iter = 0; iter < max_iter; iter++)
@@ -186,8 +158,6 @@ static int decode_block(ldpc_graph_t *g, float *blockLLR, char *infoOut,
         for (int ci = 0; ci < g->numChecks; ci++)
         {
             int deg = g->checkDegree[ci];
-
-            /* Compute variable-to-check messages: v2c = belief - old_c2v */
             float v2c[MAX_VN_DEGREE];
             for (int d = 0; d < deg; d++)
             {
@@ -195,11 +165,10 @@ static int decode_block(ldpc_graph_t *g, float *blockLLR, char *infoOut,
                 v2c[d] = g->varBelief[vi] - g->c2vMsg[ci][d];
             }
 
-            /* For each outgoing edge, compute min-sum message */
             for (int d = 0; d < deg; d++)
             {
                 float minAbs = 1e20f;
-                int signProduct = 0; /* XOR of sign bits */
+                int signProduct = 0;
 
                 for (int d2 = 0; d2 < deg; d2++)
                 {
@@ -212,14 +181,13 @@ static int decode_block(ldpc_graph_t *g, float *blockLLR, char *infoOut,
                 float newMsg = MS_SCALE * minAbs;
                 if (signProduct) newMsg = -newMsg;
 
-                /* Update belief: remove old c2v, add new c2v */
                 int vi = g->checkToVar[ci][d];
                 g->varBelief[vi] += (newMsg - g->c2vMsg[ci][d]);
                 g->c2vMsg[ci][d] = newMsg;
             }
         }
 
-        /* Check syndrome: verify all check nodes satisfied */
+        /* Check syndrome */
         int syndromeOK = 1;
         for (int ci = 0; ci < g->numChecks; ci++)
         {
@@ -230,29 +198,22 @@ static int decode_block(ldpc_graph_t *g, float *blockLLR, char *infoOut,
                 int vi = g->checkToVar[ci][d];
                 if (g->varBelief[vi] < 0.0f) parity ^= 1;
             }
-            if (parity)
-            {
-                syndromeOK = 0;
-                break;
-            }
+            if (parity) { syndromeOK = 0; break; }
         }
 
-        if (syndromeOK)
-            break;
+        if (syndromeOK) break;
     }
 
-    /* Extract info bits (first k bits of the codeword) */
-    for (int i = 0; i < g->k; i++)
-    {
+    /* Extract info bits (first k positions, but only n_info actual data) */
+    int outBits = (n_info < k) ? n_info : k;
+    for (int i = 0; i < outBits; i++)
         infoOut[i] = (g->varBelief[i] < 0.0f) ? 1 : 0;
-    }
 
-    return n_coded; /* return number of coded bits actually used */
+    return 0;
 }
 
-int ldpc_decode(float *llr, int n_coded_bits, int ldpc_rate,
-                char *infoout, int max_iter, int max_info_bits,
-                char *cw_hard)
+int ldpc_decode(float *llr, int n_coded_bits, int ldpc_rate, int z,
+                char *infoout, int max_iter, int max_info_bits)
 {
     if (!llr || !infoout)
         return ENOMEM;
@@ -260,69 +221,15 @@ int ldpc_decode(float *llr, int n_coded_bits, int ldpc_rate,
     if (ldpc_rate < 0 || ldpc_rate >= LDPC_NUM_RATES)
         return EINVAL;
 
-    int k = ldpc_k[ldpc_rate];
-    int n = LDPC_N;
+    if (z <= 0)
+        return EINVAL;
 
-    /* Number of blocks */
-    int numBlocks = (n_coded_bits + n - 1) / n;
-    if (numBlocks <= 0) numBlocks = 1;
-
-    /* Build graph for this rate */
+    /* Build graph for this rate and z */
     ldpc_graph_t graph;
-    graph_init(&graph, ldpc_rate);
+    graph_init(&graph, ldpc_rate, z);
 
-    /* Distribute puncturing evenly across blocks (must match encoder) */
-    int totalCodedCapacity = numBlocks * n;
-    int totalPunctured = totalCodedCapacity - n_coded_bits;
-    if (totalPunctured < 0) totalPunctured = 0;
-    int punctPerBlock = numBlocks > 0 ? totalPunctured / numBlocks : 0;
-    int punctRemainder = numBlocks > 0 ? totalPunctured % numBlocks : 0;
-
-    int infoIdx = 0;
-    int llrIdx = 0;
-    int cwOutIdx = 0;
-
-    for (int blk = 0; blk < numBlocks; blk++)
-    {
-        /* This block's puncturing: last blocks get one extra */
-        int thisPunct = punctPerBlock;
-        if (blk >= numBlocks - punctRemainder)
-            thisPunct++;
-        int codedThisBlock = n - thisPunct;
-        if (codedThisBlock < 0) codedThisBlock = 0;
-
-        /* Info bits for this block (for shortening detection) */
-        int infoThisBlock = max_info_bits - blk * k;
-        if (infoThisBlock > k) infoThisBlock = k;
-        if (infoThisBlock < 0) infoThisBlock = 0;
-
-        /* Feed received LLRs for this block from the flat stream */
-        float blockLLR[LDPC_N];
-        for (int i = 0; i < codedThisBlock && llrIdx < n_coded_bits; i++)
-            blockLLR[i] = llr[llrIdx++];
-        /* Remaining positions will be handled by decode_block as
-           shortening (info) or punctured parity (erasure) */
-
-        /* Decode this block */
-        char blockInfo[LDPC_N];
-        decode_block(&graph, blockLLR, blockInfo, max_iter,
-                     codedThisBlock, infoThisBlock);
-
-        /* Copy info bits to output, respecting buffer limit */
-        for (int i = 0; i < k && infoIdx < max_info_bits; i++)
-        {
-            infoout[infoIdx++] = blockInfo[i];
-        }
-
-        /* Output full codeword hard decisions for hardpoints update */
-        if (cw_hard)
-        {
-            for (int i = 0; i < codedThisBlock && cwOutIdx < n_coded_bits; i++)
-            {
-                cw_hard[cwOutIdx++] = (graph.varBelief[i] < 0.0f) ? 1 : 0;
-            }
-        }
-    }
+    /* Single block decode — no puncturing, no multi-block */
+    decode_block(&graph, llr, infoout, max_iter, n_coded_bits, max_info_bits);
 
     graph_free(&graph);
     return 0;

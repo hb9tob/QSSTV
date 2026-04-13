@@ -72,20 +72,29 @@ protected:
 	ECodScheme	eCodingScheme;
 };
 
-class CMLCEncoder : public CTransmitterModul<_BINARY, _COMPLEX>, 
+class CMLCEncoder : public CTransmitterModul<_BINARY, _COMPLEX>,
 					public CMLC
 {
 public:
-	CMLCEncoder() : bUseLDPC(false) {}
+	CMLCEncoder() : bUseLDPC(false), iLDPCFrameCount(0),
+					iLDPCTotalFrames(0), iLDPCz(0) {}
 	virtual ~CMLCEncoder() {}
 
 protected:
 	CConvEncoder		ConvEncoder[MC_MAX_NUM_LEVELS];
-	CLDPCEncoder		LDPCEncoder[MC_MAX_NUM_LEVELS];
-	CLDPCEncoder		BICMEncoder; /* Single encoder for WiFi-style BICM */
+	CLDPCEncoder		BICMEncoder; /* Single LDPC encoder for multi-frame BICM */
 	bool				bUseLDPC;
-	int					iTotalInfoBits;
-	int					iTotalCodedBits;
+	int					iTotalInfoBits;    /* info bits per interleaver period */
+	int					iTotalCodedBits;   /* coded bits per interleaver period */
+	int					iInfoBitsPerFrame; /* info bits per single frame */
+	int					iCodedBitsPerFrame;/* coded bits per single frame */
+	int					iLDPCFrameCount;   /* current frame within interleaver period */
+	int					iLDPCTotalFrames;  /* frames per interleaver period (6 or 2) */
+	int					iLDPCz;            /* expansion factor */
+	/* Multi-frame LDPC buffers */
+	CVector<_DECISION>	vecLDPCInfoAccum;  /* accumulated info bits across frames */
+	CVector<_DECISION>	vecLDPCCodedAll;   /* all coded bits from single LDPC encode */
+
 	/* Two different types of interleaver table */
 	CBitInterleaver		BitInterleaver[2];
 	CQAMMapping			QAMMapping;

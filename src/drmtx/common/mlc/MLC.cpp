@@ -30,6 +30,7 @@
 \******************************************************************************/
 
 #include "MLC.h"
+#include "LDPCTables.h"
 
 #define NUM_FAC_CELLS 45
 
@@ -126,8 +127,8 @@ void CMLCEncoder::ProcessDataInternal(CParameter&)
 	/* Channel encoder ------------------------------------------------------ */
 	if (bUseLDPC)
 	{
-		/* LDPC with MLC structure preserved: collect all levels' info bits,
-		   single LDPC encode, then distribute coded bits back to per-level
+		/* Single-frame LDPC with dynamic z: collect all levels' info bits,
+		   single LDPC encode, distribute coded bits back to per-level
 		   buffers for bit interleaving and QAM mapping. */
 		CVector<_DECISION> bicmIn(iTotalInfoBits);
 		CVector<_DECISION> bicmOut(iTotalCodedBits);
@@ -184,12 +185,18 @@ void CMLCEncoder::InitInternal(CParameter& TransmParam)
 	/* Encoder */
 	if (bUseLDPC)
 	{
-		/* WiFi-style BICM: single LDPC encoder for all levels combined */
+		/* Single-frame LDPC with dynamic z: n = total coded bits per frame.
+		   z = n / 24. One LDPC codeword per DRM frame. */
 		iTotalInfoBits = 0;
 		for (i = 0; i < iLevels; i++)
 			iTotalInfoBits += iM[i][0] + iM[i][1];
 		iTotalCodedBits = iLevels * iNumEncBits;
-		BICMEncoder.Init(TransmParam.iLDPCRate, iTotalInfoBits, iTotalCodedBits);
+
+		/* Compute z so that n = iTotalCodedBits */
+		iLDPCz = iTotalCodedBits / LDPC_BASE_COLS;
+		if (iLDPCz < 1) iLDPCz = 1;
+
+		BICMEncoder.Init(TransmParam.iLDPCRate, iLDPCz, iTotalInfoBits);
 	}
 	else
 	{
@@ -199,8 +206,6 @@ void CMLCEncoder::InitInternal(CParameter& TransmParam)
 	}
 
 	/* Bit interleaver */
-	/* First init all possible interleaver (According table "TableMLC.h" ->
-	   "Interleaver sequence") */
 	if (eCodingScheme == CS_3_HMMIX)
 	{
 		BitInterleaver[0].Init(iN[0], iN[1], 13);
@@ -219,19 +224,13 @@ void CMLCEncoder::InitInternal(CParameter& TransmParam)
 	/* Allocate memory for internal bit-buffers ----------------------------- */
 	for (i = 0; i < iLevels; i++)
 	{
-		/* Buffers for each encoder on all different levels */
-		/* Add bits from higher protected and lower protected part */
 		vecEncInBuffer[i].Init(iM[i][0] + iM[i][1]);
-	
-		/* Encoder output buffers for all levels. Must have the same length */
 		vecEncOutBuffer[i].Init(iNumEncBits);
 	}
 
 	/* Define block-size for input and output */
 	iInputBlockSize = iNumInBits;
 	iOutputBlockSize = iN_mux;
-	// printf("In init MSCMLCEnc inputblk = %d outpublk = %d\n",
-			 //  iInputBlockSize, iOutputBlockSize);
 
 }
 

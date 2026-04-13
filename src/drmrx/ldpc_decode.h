@@ -1,10 +1,9 @@
 /******************************************************************************\
- * QSSTV - LDPC Decoder for IEEE 802.11n codes
+ * QSSTV - LDPC Decoder for QC-LDPC codes (802.11n base matrices)
  *
  * Description:
- *   Min-sum belief propagation LDPC decoder.
- *   Replaces viterbi_decode() in the MSC decoding path when LDPC mode
- *   is signaled.
+ *   Min-sum belief propagation LDPC decoder with runtime expansion factor z.
+ *   Single codeword spanning the full interleaver depth.
  *
  ******************************************************************************
  *
@@ -19,25 +18,21 @@
 #define LDPC_DECODE_H
 
 /*
- * ldpc_decode - Decode one or more LDPC blocks from LLR values
+ * ldpc_decode - Decode a single LDPC codeword from LLR values
  *
  * Parameters:
- *   llr            - Log-likelihood ratios from demapper (positive = bit is 0)
- *   n_coded_bits   - Total number of coded bits (may not be multiple of 1944)
+ *   llr            - Log-likelihood ratios (positive = bit is 0)
+ *   n_coded_bits   - Number of coded bits received (= n = 24*z)
  *   ldpc_rate      - LDPC rate index: 0=1/2, 1=2/3, 2=3/4, 3=5/6
+ *   z              - Expansion factor (runtime, computed from frame params)
  *   infoout        - Output buffer for decoded info bits (hard decisions)
- *   max_iter       - Maximum number of BP iterations per block
- *   max_info_bits  - Maximum info bits to write (prevents buffer overflow
- *                    when LDPC block size exceeds MLC buffer allocation)
- *   cw_hard        - Output buffer for full codeword hard decisions
- *                    (n_coded_bits entries, used to update hardpoints).
- *                    May be NULL if not needed.
+ *   max_iter       - Maximum number of BP iterations
+ *   max_info_bits  - Maximum info bits to write (actual data, before shortening)
  *
  * Returns:
  *   0 on success, nonzero on error
  */
-int ldpc_decode(float *llr, int n_coded_bits, int ldpc_rate,
-                char *infoout, int max_iter, int max_info_bits,
-                char *cw_hard);
+int ldpc_decode(float *llr, int n_coded_bits, int ldpc_rate, int z,
+                char *infoout, int max_iter, int max_info_bits);
 
 #endif /* LDPC_DECODE_H */

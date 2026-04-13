@@ -22,6 +22,7 @@
 
 /* #include "viterbi_decode.h" */
 #include "ldpc_decode.h"
+#include "../drmtx/common/mlc/LDPCTables.h"
 #include "msd_hard_sdc.h"
 
 /* LDPC mode flags (set by channeldecode.cpp from FAC) */
@@ -480,9 +481,11 @@ int msdhardmsc(double *received_real, double *received_imag, int Lrxdata,
 	  for (level = 0; level < no_of_levels; level++)
 	    total_info += (int) L1_real[level] + (int) L2_real[level];
 	  static char bicm_info[6000];
-	  static char bicm_cw[12000];
-	  error = ldpc_decode(bicm_llr, total_coded, ldpc_rate_index,
-			      bicm_info, 50, total_info, bicm_cw);
+	  /* Compute z for single-frame LDPC (n = total_coded, z = n/24) */
+	  int ldpc_z = total_coded / LDPC_BASE_COLS;
+	  if (ldpc_z < 1) ldpc_z = 1;
+	  error = ldpc_decode(bicm_llr, total_coded, ldpc_rate_index, ldpc_z,
+			      bicm_info, 50, total_info);
 	  /* Distribute decoded info bits to per-level infoout */
 	  int info_idx = 0;
 	  for (level = 0; level < no_of_levels; level++)

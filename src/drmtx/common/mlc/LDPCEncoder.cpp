@@ -1,10 +1,11 @@
 /******************************************************************************\
- * QSSTV - LDPC Encoder for IEEE 802.11n codes
+ * QSSTV - LDPC Encoder for QC-LDPC codes (802.11n base matrices)
  *
  * Description:
- *   Systematic LDPC encoder. The 802.11n H matrices have a special
- *   dual-diagonal structure in the parity part that allows efficient
- *   encoding via back-substitution.
+ *   Systematic QC-LDPC encoder with runtime expansion factor z.
+ *   Single codeword spanning the full interleaver depth.
+ *   Shortened positions are filled with PRBS (not zeros) to avoid
+ *   correlated phase transitions in OFDM.
  *
  ******************************************************************************
  *
@@ -18,48 +19,54 @@
 #include "LDPCEncoder.h"
 #include "LDPCTables.h"
 #include <cstring>
-#include <cmath>
 
 CLDPCEncoder::CLDPCEncoder()
-    : m_rate(0), m_k(0), m_n(LDPC_N), m_nk(0),
-      m_numBlocks(0), m_numInputBits(0), m_numOutputBits(0),
-      m_shortenBits(0), m_punctureBits(0)
+    : m_rate(0), m_z(0), m_k(0), m_n(0), m_nk(0),
+      m_numInfoBits(0), m_shortenBits(0)
 {
 }
 
-void CLDPCEncoder::Init(int ldpcRate, int numInputBits, int numOutputBits)
+void CLDPCEncoder::generatePRBS(unsigned char *buf, int len)
+{
+    /* Same PRBS as DRM energy dispersal: P(X) = X^9 + X^5 + 1 */
+    uint32_t reg = ~(uint32_t)0; /* all ones */
+    for (int i = 0; i < len; i++)
+    {
+        unsigned char bit = ((reg >> 4) ^ (reg >> 8)) & 1;
+        reg = (reg << 1) | bit;
+        buf[i] = bit;
+    }
+}
+
+void CLDPCEncoder::Init(int ldpcRate, int z, int numInfoBits)
 {
     m_rate = ldpcRate;
     if (m_rate < 0) m_rate = 0;
     if (m_rate >= LDPC_NUM_RATES) m_rate = LDPC_NUM_RATES - 1;
 
-    m_k = ldpc_k[m_rate];
-    m_n = LDPC_N;
-    m_nk = ldpc_nk[m_rate];
-    m_numInputBits = numInputBits;
-    m_numOutputBits = numOutputBits;
+    m_z = z;
+    m_n = ldpc_n_from_z(z);
+    m_k = ldpc_k_from_z(z, m_rate);
+    m_nk = ldpc_nk_from_z(z, m_rate);
+    m_numInfoBits = numInfoBits;
 
-    /* Calculate number of LDPC blocks needed */
-    if (m_numInputBits <= 0)
-        m_numBlocks = 0;
-    else
-        m_numBlocks = (m_numInputBits + m_k - 1) / m_k;
+    /* Shortening: actual info < k → pad with PRBS */
+    m_shortenBits = m_k - m_numInfoBits;
+    if (m_shortenBits < 0) m_shortenBits = 0;
 
-    /* Shortening: how many zero bits to pad the last info block */
-    m_shortenBits = m_numBlocks * m_k - m_numInputBits;
-
-    /* Puncturing: if total coded bits exceed what MLC expects, puncture
-       parity bits from the last block(s) */
-    int totalCodedBits = m_numBlocks * m_n;
-    m_punctureBits = totalCodedBits - m_numOutputBits;
-    if (m_punctureBits < 0) m_punctureBits = 0;
-
-    /* Build sparse H matrix for encoding */
+    /* Build sparse H matrix for this z */
     buildSparseH();
 
-    /* Allocate temp buffers */
+    /* Allocate buffers */
     m_infoBuf.resize(m_k, 0);
     m_codeBuf.resize(m_n, 0);
+
+    /* Pre-generate PRBS for shortening padding */
+    if (m_shortenBits > 0)
+    {
+        m_prbsBuf.resize(m_shortenBits);
+        generatePRBS(&m_prbsBuf[0], m_shortenBits);
+    }
 }
 
 void CLDPCEncoder::buildSparseH()
@@ -80,7 +87,8 @@ void CLDPCEncoder::buildSparseH()
             if (val >= 0)
             {
                 m_rowCols[r].push_back(c);
-                m_rowShifts[r].push_back(val);
+                /* Take shift mod z for arbitrary expansion factor */
+                m_rowShifts[r].push_back(val % m_z);
             }
         }
     }
@@ -88,25 +96,14 @@ void CLDPCEncoder::buildSparseH()
 
 /*
  * Encode a single LDPC block using the 802.11n quasi-cyclic structure.
- *
- * The H matrix has the form H = [A | B] where:
- *   - A is (n-k) x k (information part)
- *   - B is (n-k) x (n-k) (parity part) with dual-diagonal structure
- *
- * For 802.11n, B has the structure where the first row may differ,
- * but rows 2..m have identity shifted by 0 on the diagonal and
- * sub-diagonal, forming a dual-diagonal.
- *
- * Encoding: codeword = [s | p] where s = info bits, p = parity bits
- * Step 1: Compute syndrome contributions from info bits for each check row
- * Step 2: Resolve parity bits using the dual-diagonal structure of B
+ * Codeword = [info | parity], parity resolved via dual-diagonal back-sub.
  */
 void CLDPCEncoder::encodeBlock(const unsigned char *infoBits,
                                 unsigned char *codeBits)
 {
     int baseRows = ldpc_base_rows[m_rate];
-    int z = LDPC_Z;
-    int baseCols_info = LDPC_BASE_COLS - baseRows; /* info columns */
+    int z = m_z;
+    int baseCols_info = LDPC_BASE_COLS - baseRows;
 
     /* Copy info bits to output (systematic) */
     memcpy(codeBits, infoBits, m_k);
@@ -114,9 +111,7 @@ void CLDPCEncoder::encodeBlock(const unsigned char *infoBits,
     /* Initialize parity bits to zero */
     memset(codeBits + m_k, 0, m_nk);
 
-    /* Step 1: For each base check row, compute the XOR contributions
-       from the information columns using the cyclic shift structure */
-    /* We store intermediate syndrome per sub-row of z bits */
+    /* Step 1: Compute syndrome from information columns */
     std::vector<unsigned char> syndrome(m_nk, 0);
 
     for (int br = 0; br < baseRows; br++)
@@ -126,13 +121,8 @@ void CLDPCEncoder::encodeBlock(const unsigned char *infoBits,
             int bc = m_rowCols[br][idx];
             int shift = m_rowShifts[br][idx];
 
-            /* Only process information columns (bc < baseCols_info) */
             if (bc >= baseCols_info) continue;
 
-            /* XOR the cyclically shifted z-bit sub-block into syndrome.
-             * H[r*z+i, c*z+j] = 1 when j = (i+shift)%z, so the
-             * contribution of column c at check position i is
-             * infoBits[c*z + (i+shift)%z]. */
             for (int j = 0; j < z; j++)
             {
                 int srcIdx = bc * z + ((j + shift) % z);
@@ -142,38 +132,22 @@ void CLDPCEncoder::encodeBlock(const unsigned char *infoBits,
         }
     }
 
-    /* Step 2: Resolve parity bits using the 802.11n encoding algorithm.
-     *
-     * The 802.11n parity structure has a "first column" that appears in
-     * 3 check rows, plus a dual-diagonal staircase for the remaining columns.
-     * A naive iterative search for rows with 1 unsolved column FAILS because
-     * no such row exists initially.
-     *
-     * Proper algorithm:
-     * (a) p_0 = XOR of ALL syndrome sub-blocks (derived from the constraint
-     *     that the sum of all check equations must equal zero)
-     * (b) Process rows 0..m-2 in order. At each row, exactly one parity
-     *     column is unsolved (the staircase guarantees this after p_0 is known).
-     *     Solve it by XORing the syndrome with all known parity contributions.
-     */
+    /* Step 2: Resolve parity via dual-diagonal structure */
     unsigned char *parity = codeBits + m_k;
 
-    /* (a) Compute p_0 = XOR of all syndrome sub-blocks */
+    /* (a) p_0 = XOR of all syndrome sub-blocks */
     for (int j = 0; j < z; j++)
         parity[j] = 0;
     for (int br = 0; br < baseRows; br++)
-    {
         for (int j = 0; j < z; j++)
             parity[j] ^= syndrome[br * z + j];
-    }
 
-    /* (b) Process rows 0..m-2 in order to solve remaining parity columns */
+    /* (b) Resolve remaining parity columns in order */
     std::vector<bool> solved(baseRows, false);
-    solved[0] = true; /* p_0 is known */
+    solved[0] = true;
 
     for (int br = 0; br < baseRows - 1; br++)
     {
-        /* Find the single unsolved parity column in this row */
         int solveCol = -1;
         for (size_t idx = 0; idx < m_rowCols[br].size(); idx++)
         {
@@ -189,12 +163,11 @@ void CLDPCEncoder::encodeBlock(const unsigned char *infoBits,
             }
         }
 
-        if (solveCol < 0)
-            continue; /* all parity in this row already solved (shouldn't happen) */
+        if (solveCol < 0) continue;
 
-        /* Compute: new_parity = syndrome XOR all known parity contributions */
-        unsigned char temp[LDPC_Z];
-        memcpy(temp, &syndrome[br * z], z);
+        /* Compute: parity = syndrome XOR known parity contributions */
+        std::vector<unsigned char> temp(z);
+        memcpy(&temp[0], &syndrome[br * z], z);
 
         for (size_t idx = 0; idx < m_rowCols[br].size(); idx++)
         {
@@ -205,23 +178,17 @@ void CLDPCEncoder::encodeBlock(const unsigned char *infoBits,
                 int pc = bc - baseCols_info;
                 if (solved[pc])
                 {
-                    /* Contribution at check position j is
-                     * parity[pc*z + (j+shift)%z] */
                     for (int j = 0; j < z; j++)
-                    {
-                        int srcJ = (j + shift) % z;
-                        temp[j] ^= parity[pc * z + srcJ];
-                    }
+                        temp[j] ^= parity[pc * z + ((j + shift) % z)];
                 }
             }
         }
 
-        /* Account for the cyclic shift of the target column */
+        /* Apply cyclic shift of target column */
         int solveShift = 0;
         for (size_t idx = 0; idx < m_rowCols[br].size(); idx++)
         {
-            int bc = m_rowCols[br][idx];
-            if (bc - baseCols_info == solveCol)
+            if (m_rowCols[br][idx] - baseCols_info == solveCol)
             {
                 solveShift = m_rowShifts[br][idx];
                 break;
@@ -229,10 +196,7 @@ void CLDPCEncoder::encodeBlock(const unsigned char *infoBits,
         }
 
         for (int j = 0; j < z; j++)
-        {
-            int srcJ = (j + solveShift) % z;
-            parity[solveCol * z + srcJ] = temp[j];
-        }
+            parity[solveCol * z + ((j + solveShift) % z)] = temp[j];
 
         solved[solveCol] = true;
     }
@@ -241,53 +205,25 @@ void CLDPCEncoder::encodeBlock(const unsigned char *infoBits,
 int CLDPCEncoder::Encode(CVector<_DECISION>& vecInputData,
                           CVector<_DECISION>& vecOutputData)
 {
-    int outputIdx = 0;
-
-    /* Distribute puncturing evenly across all blocks.
-     * Each block outputs (n - punctPerBlock) bits, with the remainder
-     * blocks outputting one fewer bit. Puncture from the end of each
-     * block (last parity bits = least critical). */
-    int punctPerBlock = (m_numBlocks > 0) ? m_punctureBits / m_numBlocks : 0;
-    int punctRemainder = (m_numBlocks > 0) ? m_punctureBits % m_numBlocks : 0;
-
-    for (int blk = 0; blk < m_numBlocks; blk++)
+    /* Fill info buffer: actual data + PRBS padding for shortening */
+    for (int i = 0; i < m_k; i++)
     {
-        /* Fill info buffer: extract hard decisions from soft input */
-        int infoStart = blk * m_k;
-        memset(&m_infoBuf[0], 0, m_k);
-
-        for (int i = 0; i < m_k; i++)
-        {
-            int srcIdx = infoStart + i;
-            if (srcIdx < m_numInputBits)
-            {
-                /* Extract hard bit from _DECISION (may be soft or hard) */
-                m_infoBuf[i] = (ExtractBit(vecInputData[srcIdx]) != 0) ? 1 : 0;
-            }
-            /* else: zero-padded (shortening) */
-        }
-
-        /* Encode the block */
-        encodeBlock(&m_infoBuf[0], &m_codeBuf[0]);
-
-        /* Distribute puncturing: last blocks get one extra punctured bit */
-        int thisPunct = punctPerBlock;
-        if (blk >= m_numBlocks - punctRemainder)
-            thisPunct++;
-        int bitsToOutput = m_n - thisPunct;
-        if (bitsToOutput < 0) bitsToOutput = 0;
-
-        for (int i = 0; i < bitsToOutput && outputIdx < m_numOutputBits; i++)
-        {
-            vecOutputData[outputIdx++] = m_codeBuf[i] ? 1 : 0;
-        }
+        if (i < m_numInfoBits)
+            m_infoBuf[i] = (ExtractBit(vecInputData[i]) != 0) ? 1 : 0;
+        else
+            m_infoBuf[i] = m_prbsBuf[i - m_numInfoBits]; /* PRBS padding */
     }
 
-    /* Zero-fill any remaining output bits (shouldn't normally happen) */
-    while (outputIdx < m_numOutputBits)
-    {
-        vecOutputData[outputIdx++] = 0;
-    }
+    /* Encode single block */
+    encodeBlock(&m_infoBuf[0], &m_codeBuf[0]);
 
-    return outputIdx;
+    /* Output: all n coded bits (no puncturing!) */
+    int outputBits = m_n;
+    if (outputBits > vecOutputData.Size())
+        outputBits = vecOutputData.Size();
+
+    for (int i = 0; i < outputBits; i++)
+        vecOutputData[i] = m_codeBuf[i] ? 1 : 0;
+
+    return outputBits;
 }
