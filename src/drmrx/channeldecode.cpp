@@ -605,10 +605,29 @@ void channel_decoding(void)
             {
               ratesB[i] = RatesSM64[multiplex_description.PL_PartB][i] - 1;
             }
-          for (i = 0; i < 3; i++)
+          if (ldpc_mode_flag)
             {
-              L[i] = 2 * N1 * (RX[ratesA[i]] / RY[ratesA[i]]);
-              L[i + 3] = (RX[ratesB[i]] * floor((2 * N2 - 12) / RY[ratesB[i]]));
+              /* LDPC mode: total info = levels * 2*N_MUX * rate, split evenly */
+              static const int rateNum[] = {1, 2, 3, 5};
+              static const int rateDen[] = {2, 3, 4, 6};
+              int rIdx = ldpc_rate_index;
+              if (rIdx < 0) rIdx = 0;
+              if (rIdx > 3) rIdx = 3;
+              int totalInfo = (3 * 2 * N_MUX * rateNum[rIdx]) / rateDen[rIdx];
+              for (i = 0; i < 3; i++)
+                {
+                  L[i] = 0;
+                  L[i + 3] = totalInfo / 3;
+                }
+              L[5] += totalInfo - 3 * (totalInfo / 3);
+            }
+          else
+            {
+              for (i = 0; i < 3; i++)
+                {
+                  L[i] = 2 * N1 * (RX[ratesA[i]] / RY[ratesA[i]]);
+                  L[i + 3] = (RX[ratesB[i]] * floor((2 * N2 - 12) / RY[ratesB[i]]));
+                }
             }
           Lvspp = 0;
           rowdimL = 3;
@@ -643,10 +662,29 @@ void channel_decoding(void)
             {
               ratesB[i] = RatesSM16[multiplex_description.PL_PartB][i] - 1;
             }
-          for (i = 0; i < 2; i++)
+          if (ldpc_mode_flag)
             {
-              L[i] = 2 * N1 * (RX[ratesA[i]] / RY[ratesA[i]]);
-              L[i + 2] = (RX[ratesB[i]] * floor((2 * N2 - 12) / RY[ratesB[i]]));
+              /* LDPC mode: total info = levels * 2*N_MUX * rate, split evenly */
+              static const int rateNum[] = {1, 2, 3, 5};
+              static const int rateDen[] = {2, 3, 4, 6};
+              int rIdx = ldpc_rate_index;
+              if (rIdx < 0) rIdx = 0;
+              if (rIdx > 3) rIdx = 3;
+              int totalInfo = (2 * 2 * N_MUX * rateNum[rIdx]) / rateDen[rIdx];
+              for (i = 0; i < 2; i++)
+                {
+                  L[i] = 0;
+                  L[i + 2] = totalInfo / 2;
+                }
+              L[3] += totalInfo - 2 * (totalInfo / 2);
+            }
+          else
+            {
+              for (i = 0; i < 2; i++)
+                {
+                  L[i] = 2 * N1 * (RX[ratesA[i]] / RY[ratesA[i]]);
+                  L[i + 2] = (RX[ratesB[i]] * floor((2 * N2 - 12) / RY[ratesB[i]]));
+                }
             }
           rowdimL = 2;
           coldimL = 2;
