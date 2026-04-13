@@ -19,32 +19,7 @@
 #include <errno.h>
 #include <math.h>
 #include <string.h>
-#include <stdint.h>
-
-/* #include "viterbi_decode.h" */
-#include "ldpc_decode.h"
-#include "../drmtx/common/mlc/LDPCTables.h"
 #include "msd_hard_sdc.h"
-
-/* LDPC mode flags (set by channeldecode.cpp from FAC) */
-extern int ldpc_mode_flag;
-extern int ldpc_rate_index;
-
-/* 6-frame LDPC state */
-static float bicm_llr_accum[120000]; /* LLRs accumulated across 6 frames */
-static char  ldpc_decoded_info[60000]; /* decoded info bits for 6 frames */
-static int   ldpc_decoded_valid = 0;   /* 1 = ldpc_decoded_info has valid data */
-static int   ldpc_rx_sf_parity = 0;   /* superframe parity tracker (0/1) */
-static int   ldpc_rx_last_identity = -1; /* to detect superframe boundary */
-
-/* Reset LDPC accumulation state (called when sync is lost) */
-void ldpc_rx_reset(void)
-{
-  ldpc_decoded_valid = 0;
-  ldpc_rx_sf_parity = 0;
-  ldpc_rx_last_identity = -1;
-  memset(bicm_llr_accum, 0, sizeof(bicm_llr_accum));
-}
 
 #define ITER_BREAK
 #define CONSIDERING_SNR
@@ -93,10 +68,6 @@ int msdhardmsc(double *received_real, double *received_imag, int Lrxdata,
   int PRBS_reg;
   int HMmix = 0, HMsym = 0;
   int i;
-  static float bicm_llr[12000]; /* BICM: de-interleaved LLRs for all levels combined */
-  static int msc_call_count = 0;
-  if (msc_call_count++ % 50 == 0)
-    fprintf(stderr, "MSC called #%d ldpc=%d\n", msc_call_count, ldpc_mode_flag);
 
 #ifdef CONSIDERING_SNR
   double *signal_to_noise_ratio;
@@ -443,29 +414,7 @@ int msdhardmsc(double *received_real, double *received_imag, int Lrxdata,
 	     printf("tailpuncturing[... ] = %p\n", tailpuncturing[rp[level]]);
 	     for (i=0; i < 13 ; i++)
 	     printf("inhoud is %d ", tailpuncturing[rp[level]][i]);  */
-	  if (ldpc_mode_flag)
-	    {
-	      /* WiFi-style BICM: store de-interleaved LLRs per level,
-	         decode all together after the level loop */
-	      int n_coded = (2 - HMmix) * N;
-	      int *deint = Deinterleaver + n_coded * level;
-	      for (sample_index = 0; sample_index < n_coded; sample_index++)
-		bicm_llr[level * n_coded + sample_index] = -llr[deint[sample_index]];
-	      /* Update hardpoints from raw LLR signs.
-	       * MSD convention: positive llr → bit 1 (same as viterbi_decode
-	       * which uses -llr for 0-metric, +llr for 1-metric) */
-	      for (sample_index = 0; sample_index < n_coded; sample_index++)
-		{
-		  int pos = deint[sample_index];
-		  int bit = (llr[pos] > 0.0f) ? 1 : 0;
-		  hardpoints_ptr[pos] =
-		    (hardpoints_ptr[pos] & ~(0x1 << level)) |
-		    (bit << level);
-		}
-	      error = 0;
-	    }
-	  else
-	    {
+	  /* TODO: turbo_decode when fecMode=1 */
 	      error = viterbi_decode(llr, (2 - HMmix) * N,
 				     (level
 				      || (!HMsym
@@ -481,7 +430,6 @@ int msdhardmsc(double *received_real, double *received_imag, int Lrxdata,
 				     Deinterleaver + (2 - HMmix) * N * level,
 				     (int) L1[level] + (int) L2[level] + 6,
 				     rp[level] + 12, viterbi_mem);
-	    }
 
 	  if (error)
 	    {
@@ -491,105 +439,7 @@ int msdhardmsc(double *received_real, double *received_imag, int Lrxdata,
 	    }
 	}			/* end loop level */
 
-      /* 6-frame LDPC pipeline: accumulate LLRs, decode at frame 5,
-	 output decoded data frame-by-frame from buffer every frame. */
-      if (ldpc_mode_flag)
-	{
-	  int n_coded = (2 - HMmix) * N;
-	  int this_frame_coded = no_of_levels * n_coded;
-	  /* Compute LDPC position using FAC identity + superframe parity,
-	     same formula as TX: pos = sfParity * 3 + identity.
-	     Toggle parity when identity wraps (identity 0 after identity 2). */
-	  extern int drm_fac_identity;
-	  int fac_id = drm_fac_identity; /* 0, 1, or 2 within superframe */
-	  if (fac_id == 0 && ldpc_rx_last_identity == 2)
-	    ldpc_rx_sf_parity ^= 1; /* new superframe → toggle parity */
-	  ldpc_rx_last_identity = fac_id;
-	  int ldpc_pos = (ldpc_rx_sf_parity * 3 + fac_id + 1) % 6; /* 0..5, +1 for pipeline delay */
-
-	  fprintf(stderr, "LDPC-RX pos=%d fac=%d sfp=%d\n", ldpc_pos, fac_id, ldpc_rx_sf_parity);
-
-	  /* Accumulate this frame's LLRs */
-	  int accum_offset = ldpc_pos * this_frame_coded;
-	  for (sample_index = 0; sample_index < this_frame_coded; sample_index++)
-	    bicm_llr_accum[accum_offset + sample_index] = bicm_llr[sample_index];
-
-	  /* OUTPUT first, THEN decode — same principle as TX.
-	     At pos=5 the old buffer still holds the previous cycle's data,
-	     so we must output before overwriting with the new decode. */
-	  /* WiFi-style: MSC payload = min(LDPC capacity, Viterbi size) / 6.
-	     For rates > 1/2 the LDPC capacity exceeds Viterbi buffer size,
-	     so we cap to the Viterbi allocation (stronger FEC, same data). */
-	  int ldpc_info_cap = (6 * this_frame_coded / ldpc_n_from_z(81))
-			      * ldpc_k_from_z(81, ldpc_rate_index);
-	  int viterbi_info_per_frame = 0;
-	  for (level = 0; level < no_of_levels; level++)
-	    viterbi_info_per_frame += (int) L1_real[level] + (int) L2_real[level];
-	  int total_info_per_frame = ldpc_info_cap / 6;
-	  if (total_info_per_frame > viterbi_info_per_frame)
-	    total_info_per_frame = viterbi_info_per_frame;
-
-	  /* Override L1/L2 for energy dispersal (single-level: all in L2) */
-	  L1_real[0] = 0;
-	  L2_real[0] = total_info_per_frame;
-	  for (level = 1; level < no_of_levels; level++)
-	    { L1_real[level] = 0; L2_real[level] = 0; }
-
-	  if (ldpc_decoded_valid)
-	    {
-	      int out_idx = ldpc_pos * total_info_per_frame;
-	      for (level = 0; level < no_of_levels; level++)
-		{
-		  int info_bits = (int) L1_real[level] + (int) L2_real[level];
-		  for (sample_index = 0; sample_index < info_bits; sample_index++)
-		    infoout[level][sample_index] = ldpc_decoded_info[out_idx++];
-		}
-	    }
-	  else
-	    {
-	      /* No decoded data yet (warm-up): fill with PRBS (X^9+X^5+1)
-		 to avoid fortuitous convergence and energy concentration.
-		 Same PRBS seed as TX run-in so energy dispersal stays coherent. */
-	      uint32_t prbs_reg = ~(uint32_t)0;
-	      for (level = 0; level < no_of_levels; level++)
-		{
-		  int info_bits = (int) L1_real[level] + (int) L2_real[level];
-		  for (sample_index = 0; sample_index < info_bits; sample_index++)
-		    {
-		      unsigned char bit = ((prbs_reg >> 4) ^ (prbs_reg >> 8)) & 1;
-		      prbs_reg = (prbs_reg << 1) | bit;
-		      infoout[level][sample_index] = bit;
-		    }
-		}
-	    }
-
-	  /* Now decode AFTER output — new data for NEXT cycle's output */
-	  if (ldpc_pos == 5)
-	    {
-	      int total_coded_6f = 6 * this_frame_coded;
-	      int ldpc_z = 81;
-	      int ldpc_n = ldpc_n_from_z(ldpc_z);
-	      int ldpc_k = ldpc_k_from_z(ldpc_z, ldpc_rate_index);
-	      int num_blocks = total_coded_6f / ldpc_n;
-	      int filler_bits = total_coded_6f - num_blocks * ldpc_n;
-
-	      int info_idx = 0;
-	      int converged_cnt = 0;
-	      for (int blk = 0; blk < num_blocks; blk++)
-		{
-		  float *block_llr = bicm_llr_accum + filler_bits + blk * ldpc_n;
-		  char block_info[1944];
-		  int rc = ldpc_decode(block_llr, ldpc_n, ldpc_rate_index, ldpc_z,
-				       block_info, 50, ldpc_k);
-		  if (rc >= 0) converged_cnt++;
-		  for (int bi = 0; bi < ldpc_k && info_idx < 60000; bi++)
-		    ldpc_decoded_info[info_idx++] = block_info[bi];
-		}
-	      fprintf(stderr, "LDPC-DECODE: %d/%d converged, filler=%d k=%d info=%d\n",
-		      converged_cnt, num_blocks, filler_bits, ldpc_k, info_idx);
-	      ldpc_decoded_valid = 1;
-	    }
-	}
+      /* TODO: turbo decode pipeline will go here */
       PL1 = PL1_imag;
       PL2 = PL2_imag;
       L1 = L1_imag;
@@ -602,10 +452,7 @@ int msdhardmsc(double *received_real, double *received_imag, int Lrxdata,
   diff = 1;
   iteration = 0;
 
-  /* iterations: LDPC converges in a single pass (first decoding above),
-     so MSD iterations are skipped — the simplified LLR formula used in
-     iterations actually degrades LDPC performance. */
-  while (!ldpc_mode_flag && iteration < maxiter)
+  while (iteration < maxiter)
 
     {
       PL1 = PL1_real;
@@ -665,30 +512,7 @@ int msdhardmsc(double *received_real, double *received_imag, int Lrxdata,
 
 	      /* printf("Tweede viterbi PL1[0] %g PL2[0] %g L1[0] %g L2[0] %g L1_real[0] %g L2_real[0] %g rp[0] %d\n",
 	         PL1[0], PL2[0], L1[0], L2[0], L1_real[0], L2_real[0], rp[0]);   */
-	      if (ldpc_mode_flag)
-		{
-		  /* This branch should not be reached (MSD iterations disabled
-		     for LDPC), but kept for safety */
-		  int n_coded = (2 - HMmix) * N;
-		  int info_bits = (int) L1_real[level] + (int) L2_real[level];
-		  int *deint = Deinterleaver + n_coded * level;
-		  for (sample_index = 0; sample_index < info_bits; sample_index++)
-		    {
-		      float val = llr[deint[sample_index]];
-		      infoout[level][n * info_bits + sample_index] = (val < 0.0f) ? 1 : 0;
-		    }
-		  for (sample_index = 0; sample_index < n_coded; sample_index++)
-		    {
-		      int pos = deint[sample_index];
-		      int bit = (llr[pos] > 0.0f) ? 1 : 0;
-		      hardpoints_ptr[pos] =
-			(hardpoints_ptr[pos] & ~(0x1 << level)) |
-			(bit << level);
-		    }
-		  error = 0;
-		}
-	      else
-		{
+	      /* TODO: turbo_decode for iterations */
 		  error = viterbi_decode(llr,
 					 (2 - HMmix) * N,
 					 (level
@@ -705,7 +529,6 @@ int msdhardmsc(double *received_real, double *received_imag, int Lrxdata,
 					 Deinterleaver + (2 - HMmix) * N * level,
 					 (int) L1[level] + (int) L2[level] + 6,
 					 rp[level] + 12, viterbi_mem);
-		}
 	      if (error)
 
 		{

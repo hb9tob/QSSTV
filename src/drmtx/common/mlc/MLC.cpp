@@ -30,8 +30,6 @@
 \******************************************************************************/
 
 #include "MLC.h"
-#include "LDPCTables.h"
-#include "../../../drmrx/ldpc_decode.h"
 
 #define NUM_FAC_CELLS 45
 
@@ -126,142 +124,9 @@ void CMLCEncoder::ProcessDataInternal(CParameter& TransmParam)
 
 
 	/* Channel encoder ------------------------------------------------------ */
-	if (bUseLDPC)
-	{
-		/* 6-frame LDPC: accumulate info, encode N blocks of n=1944.
-		   First period: repeat frame 0 data to all 6 positions (like
-		   legacy run-in), encode immediately → valid LDPC from frame 0.
-		   Subsequent periods: real data from 6 frames. */
-
-		/* Use DRM frame ID for LDPC position (synchronized with RX).
-		   iFrameIDTransm = 0,1,2 within superframe.
-		   LDPC pos = superframe_parity*3 + iFrameIDTransm → 0..5 */
-		int ldpcPos = iLDPCSuperframeParity * 3 + TransmParam.iFrameIDTransm;
-		/* Debug print removed — was: LDPC-TX frameID/sfParity/ldpcPos */
-
-		/* Store this frame's info bits at the correct position */
-		int infoOfs = ldpcPos * iInfoBitsPerFrame;
-		int idx = 0;
-		for (j = 0; j < iLevels; j++)
-			for (i = 0; i < iM[j][0] + iM[j][1]; i++)
-				vecLDPCInfoAccum[infoOfs + idx++] = vecEncInBuffer[j][i];
-
-		/* Overwrite surplus bits (beyond LDPC capacity) with PRBS.
-		   These bits can't be LDPC-encoded so TX and RX must agree
-		   on the same padding. RX uses the same PRBS. */
-		if (iLDPCInfoCapacity < iTotalInfoBits)
-		{
-			uint32_t prbs_surplus = ~(uint32_t)0;
-			for (i = iLDPCInfoCapacity; i < iTotalInfoBits; i++)
-			{
-				unsigned char bit = ((prbs_surplus >> 4) ^ (prbs_surplus >> 8)) & 1;
-				prbs_surplus = (prbs_surplus << 1) | bit;
-				vecLDPCInfoAccum[i] = bit;
-			}
-		}
-
-		/* First frame ever: fill positions 1-5 with PRBS (not zeros,
-		   not frame 0 copy) to avoid fortuitous LDPC convergence and
-		   energy concentration in OFDM bins. Then encode immediately. */
-		if (ldpcPos == 0 && !bLDPCFirstEncDone)
-		{
-			/* PRBS X^9+X^5+1 for run-in padding */
-			uint32_t prbs_reg = ~(uint32_t)0;
-			for (int f = 1; f < iLDPCTotalFrames; f++)
-				for (i = 0; i < iInfoBitsPerFrame; i++)
-				{
-					unsigned char bit = ((prbs_reg >> 4) ^ (prbs_reg >> 8)) & 1;
-					prbs_reg = (prbs_reg << 1) | bit;
-					vecLDPCInfoAccum[f * iInfoBitsPerFrame + i] = bit;
-				}
-			/* Encode run-in immediately */
-			int ldpcK = BICMEncoder.getK();
-			int ldpcN = BICMEncoder.getN();
-			int codedIdx = iLDPCFillerBits;
-			int infoIdx2 = 0;
-			for (int blk = 0; blk < iLDPCNumBlocks; blk++)
-			{
-				CVector<_DECISION> blkIn(ldpcK);
-				CVector<_DECISION> blkOut(ldpcN);
-				for (i = 0; i < ldpcK; i++)
-				{
-					if (infoIdx2 < iTotalInfoBits)
-						blkIn[i] = vecLDPCInfoAccum[infoIdx2++];
-					else
-					{
-						/* PRBS padding for remaining block positions */
-						unsigned char bit = ((prbs_reg >> 4) ^ (prbs_reg >> 8)) & 1;
-						prbs_reg = (prbs_reg << 1) | bit;
-						blkIn[i] = bit;
-					}
-				}
-				BICMEncoder.Encode(blkIn, blkOut);
-				for (i = 0; i < ldpcN && codedIdx < iTotalCodedBits; i++)
-					vecLDPCCodedNew[codedIdx++] = blkOut[i];
-			}
-			for (i = 0; i < iTotalCodedBits; i++)
-				vecLDPCCodedOut[i] = vecLDPCCodedNew[i];
-			bLDPCFirstEncDone = true;
-		}
-
-		/* OUTPUT first, THEN encode. All 6 frames of a cycle
-		   output from the SAME encode. */
-
-		/* Output coded bits for THIS frame from the READ buffer */
-		{
-			int codedOfs = ldpcPos * iCodedBitsPerFrame;
-			int idx2 = 0;
-			for (j = 0; j < iLevels; j++)
-				for (i = 0; i < iNumEncBits; i++)
-					vecEncOutBuffer[j][i] = vecLDPCCodedOut[codedOfs + idx2++];
-			/* Debug prints removed — were: LDPC-TX-OUT lv0 bits */
-		}
-
-		/* Encode at last frame of 6-frame block (pos 5) */
-		if (ldpcPos == iLDPCTotalFrames - 1)
-		{
-			int ldpcK = BICMEncoder.getK();
-			int ldpcN = BICMEncoder.getN();
-			int codedIdx = iLDPCFillerBits;
-			int infoIdx2 = 0;
-			/* PRBS for block padding (same polynomial X^9+X^5+1) */
-			uint32_t prbs_reg = ~(uint32_t)0;
-
-			for (int blk = 0; blk < iLDPCNumBlocks; blk++)
-			{
-				CVector<_DECISION> blkIn(ldpcK);
-				CVector<_DECISION> blkOut(ldpcN);
-				for (i = 0; i < ldpcK; i++)
-				{
-					if (infoIdx2 < iTotalInfoBits)
-						blkIn[i] = vecLDPCInfoAccum[infoIdx2++];
-					else
-					{
-						unsigned char bit = ((prbs_reg >> 4) ^ (prbs_reg >> 8)) & 1;
-						prbs_reg = (prbs_reg << 1) | bit;
-						blkIn[i] = bit;
-					}
-				}
-				BICMEncoder.Encode(blkIn, blkOut);
-				for (i = 0; i < ldpcN && codedIdx < iTotalCodedBits; i++)
-					vecLDPCCodedNew[codedIdx++] = blkOut[i];
-			}
-
-			/* Copy New → Out for next cycle's output */
-			for (i = 0; i < iTotalCodedBits; i++)
-				vecLDPCCodedOut[i] = vecLDPCCodedNew[i];
-			bLDPCFirstEncDone = true;
-		}
-
-		/* Toggle superframe parity at end of each superframe */
-		if (TransmParam.iFrameIDTransm == 2)
-			iLDPCSuperframeParity ^= 1;
-	}
-	else
-	{
-		for (j = 0; j < iLevels; j++)
-			ConvEncoder[j].Encode(vecEncInBuffer[j], vecEncOutBuffer[j]);
-	}
+	/* TODO: when bUseTurbo, use turbo encoder per-frame here */
+	for (j = 0; j < iLevels; j++)
+		ConvEncoder[j].Encode(vecEncInBuffer[j], vecEncOutBuffer[j]);
 
 
 	/* Bit interleaver ------------------------------------------------------ */
@@ -285,7 +150,6 @@ void CMLCEncoder::InitInternal(CParameter& TransmParam)
 	int	iNumInBits;
 
 	TransmParam.Lock();
-	bUseLDPC = (eChannelType == CT_MSC) && (TransmParam.iFECMode == 1);
 	CalculateParam(TransmParam, eChannelType);
 	TransmParam.Unlock();
 
@@ -296,97 +160,10 @@ void CMLCEncoder::InitInternal(CParameter& TransmParam)
 	/* Energy dispersal */
 	EnergyDisp.Init(iNumInBits, iL[2]);
 
-	/* Encoder */
-	if (bUseLDPC)
-	{
-		/* 6-frame LDPC with WiFi-style payload sizing.
-		   The LDPC capacity defines the MSC payload — not the
-		   Viterbi formula. Adapts automatically to any rate. */
-		iLDPCTotalFrames = 6;
-		iLDPCFrameCount = 0;
-		iLDPCz = 81; /* standard WiFi 802.11n */
-
-		/* Coded bits per frame from QAM mapping (unchanged) */
-		iCodedBitsPerFrame = iLevels * iNumEncBits;
-		iTotalCodedBits = iCodedBitsPerFrame * iLDPCTotalFrames;
-
-		/* N blocks of n=1944 that fit in the coded space */
-		int ldpcN = ldpc_n_from_z(iLDPCz); /* 1944 */
-		iLDPCNumBlocks = iTotalCodedBits / ldpcN;
-
-		if (iLDPCNumBlocks >= 1)
-		{
-			iLDPCFillerBits = iTotalCodedBits - iLDPCNumBlocks * ldpcN;
-			int ldpcK = ldpc_k_from_z(iLDPCz, TransmParam.iLDPCRate);
-			iLDPCInfoCapacity = iLDPCNumBlocks * ldpcK;
-
-			/* WiFi-style: MSC payload = min(LDPC capacity, Viterbi) / 6.
-			   For rates > 1/2 LDPC capacity exceeds Viterbi → cap to
-			   Viterbi (stronger FEC, same data rate). */
-			{
-				int legacyInfoPerFrame = iInfoBitsPerFrame;
-				int ldpcInfoPerFrame = iLDPCInfoCapacity / iLDPCTotalFrames;
-				iInfoBitsPerFrame = (ldpcInfoPerFrame < legacyInfoPerFrame)
-					? ldpcInfoPerFrame : legacyInfoPerFrame;
-			}
-			iTotalInfoBits = iInfoBitsPerFrame * iLDPCTotalFrames;
-
-			/* Update iM/iL so the whole chain sees the LDPC-derived size */
-			int remaining = iInfoBitsPerFrame;
-			for (i = 0; i < iLevels; i++)
-			{
-				iM[i][0] = 0;
-				iM[i][1] = (remaining > 0) ? remaining : 0;
-				remaining = 0;
-			}
-			iL[0] = 0; iL[1] = 0;
-			for (i = 0; i < iLevels; i++)
-			{
-				iL[0] += iM[i][0];
-				iL[1] += iM[i][1];
-			}
-			iNumInBits = iL[0] + iL[1] + iL[2];
-			EnergyDisp.Init(iNumInBits, iL[2]);
-
-			TransmParam.Lock();
-			TransmParam.SetNumDecodedBitsMSC(iL[0] + iL[1] + iL[2]);
-			TransmParam.Unlock();
-
-			fprintf(stderr, "LDPC-TX-INIT: WiFi payload %d bits/frame "
-				"(blocks=%d k=%d cap=%d filler=%d)\n",
-				iInfoBitsPerFrame, iLDPCNumBlocks, ldpcK,
-				iLDPCInfoCapacity, iLDPCFillerBits);
-			BICMEncoder.Init(TransmParam.iLDPCRate, iLDPCz, ldpcK);
-
-			/* Allocate multi-frame double buffers */
-			vecLDPCInfoAccum.Init(iTotalInfoBits);
-			vecLDPCCodedNew.Init(iTotalCodedBits);
-			vecLDPCCodedOut.Init(iTotalCodedBits);
-
-			/* Pre-fill both coded buffers with PRBS */
-			{
-				uint32_t reg = ~(uint32_t)0;
-				for (i = 0; i < iTotalCodedBits; i++)
-				{
-					unsigned char bit = ((reg >> 4) ^ (reg >> 8)) & 1;
-					reg = (reg << 1) | bit;
-					vecLDPCCodedNew[i] = bit;
-					vecLDPCCodedOut[i] = bit;
-				}
-			}
-		}
-		else
-		{
-			/* Can't fit even 1 LDPC block — fallback to Viterbi */
-			bUseLDPC = false;
-		}
-	}
-	if (!bUseLDPC)
-	{
-		for (i = 0; i < iLevels; i++)
-			ConvEncoder[i].Init(eCodingScheme, eChannelType, iN[0], iN[1],
-				iM[i][0], iM[i][1], iCodeRate[i][0], iCodeRate[i][1], i);
-	}
+	/* Encoder — legacy Viterbi (TODO: turbo when fecMode=1) */
+	for (i = 0; i < iLevels; i++)
+		ConvEncoder[i].Init(eCodingScheme, eChannelType, iN[0], iN[1],
+			iM[i][0], iM[i][1], iCodeRate[i][0], iCodeRate[i][1], i);
 
 	/* Bit interleaver */
 	if (eCodingScheme == CS_3_HMMIX)

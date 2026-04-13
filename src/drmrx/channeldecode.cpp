@@ -74,12 +74,12 @@ int msc_mode_new;
 int interleaver_depth_new;
 bool callsignValid;
 
-/* LDPC/AVIF mode flags (decoded from FAC) */
-int ldpc_mode_flag = 0;    /* 0=Viterbi, 1=LDPC */
-int ldpc_rate_index = 0;   /* 0=1/2, 1=2/3, 2=3/4, 3=5/6 */
+/* Mode flags (kept for future turbo code signaling) */
+int ldpc_mode_flag = 0;    /* 0=Viterbi, 1=Turbo (TODO) */
+int ldpc_rate_index = 0;   /* reserved for turbo rate */
 int avif_mode_flag = 0;    /* 0=JP2, 1=AVIF */
-int drm_frame_index = 0;   /* 1..6 position within 2-superframe LDPC block */
-int drm_fac_identity = 0;  /* FAC identity: 0-2 maps to frame within superframe */
+int drm_frame_index = 0;   /* 1..6 position within DRM frame cycle */
+int drm_fac_identity = 0;  /* FAC identity: 0-2 within superframe */
 
 char getfacchar(double *);
 
@@ -185,7 +185,6 @@ void channel_decoding(void)
     {
       MSCAvailable=false;
       /* clear various datastructures */
-      ldpc_rx_reset();
       frame_index = 1;
       enough_frames = 0;
       frame_count = 0;

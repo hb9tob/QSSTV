@@ -61,7 +61,6 @@ protected:
   string strCurObjName;
   bool allDataSend;
   int extraBlocks;
-  bool bUseLDPC;
   int sliceCounter;
   int bytesToBeUsed;
 };

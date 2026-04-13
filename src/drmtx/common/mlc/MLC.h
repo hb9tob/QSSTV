@@ -35,7 +35,6 @@
 #include "../tables/TableMLC.h"
 #include "../tables/TableCarMap.h"
 #include "ConvEncoder.h"
-#include "LDPCEncoder.h"
 //#include "ViterbiDecoder.h"
 //#include "Metric.h"
 #include "BitInterleaver.h"
@@ -76,33 +75,11 @@ class CMLCEncoder : public CTransmitterModul<_BINARY, _COMPLEX>,
 					public CMLC
 {
 public:
-	CMLCEncoder() : bUseLDPC(false), iLDPCFrameCount(0),
-					iLDPCTotalFrames(0), iLDPCz(81),
-					iLDPCNumBlocks(0), iLDPCFillerBits(0),
-					bLDPCFirstEncDone(false),
-					iLDPCSuperframeParity(0) {}
+	CMLCEncoder() {}
 	virtual ~CMLCEncoder() {}
 
 protected:
 	CConvEncoder		ConvEncoder[MC_MAX_NUM_LEVELS];
-	CLDPCEncoder		BICMEncoder; /* Single LDPC encoder for multi-frame BICM */
-	bool				bUseLDPC;
-	int					iTotalInfoBits;    /* info bits per interleaver period */
-	int					iTotalCodedBits;   /* coded bits per interleaver period */
-	int					iInfoBitsPerFrame; /* info bits per single frame */
-	int					iCodedBitsPerFrame;/* coded bits per single frame */
-	int					iLDPCFrameCount;   /* current frame within interleaver period */
-	int					iLDPCTotalFrames;  /* frames per interleaver period (6 or 2) */
-	int					iLDPCz;            /* expansion factor (81 for WiFi) */
-	int					iLDPCNumBlocks;    /* number of n=1944 blocks per 6 frames */
-	int					iLDPCInfoCapacity; /* max info bits carried by LDPC (blocks*k) */
-	int					iLDPCFillerBits;   /* PRBS filler bits (low-freq subcarriers) */
-	bool				bLDPCFirstEncDone; /* first LDPC encode done (run-in) */
-	int					iLDPCSuperframeParity; /* 0 or 1: even/odd superframe */
-	/* Multi-frame LDPC buffers */
-	CVector<_DECISION>	vecLDPCInfoAccum;  /* accumulated info bits across frames */
-	CVector<_DECISION>	vecLDPCCodedOut;   /* coded bits being OUTPUT (read buffer) */
-	CVector<_DECISION>	vecLDPCCodedNew;   /* coded bits being ENCODED (write buffer) */
 
 	/* Two different types of interleaver table */
 	CBitInterleaver		BitInterleaver[2];
