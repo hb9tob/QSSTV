@@ -111,7 +111,7 @@ bool drmTx::initDRMImage(bool binary,QString fileName)
               addToLog(QString("Unable to copy image from txWidget->viewer"),LOGDRMTX);
               return false;
             }
-          if (drmParams.fecMode == 1)
+          if (drmParams.imageCodec == 1)
             drmTxFileName.setFile(drmTxFileName.completeBaseName()+".avif");
           else
             drmTxFileName.setFile(drmTxFileName.completeBaseName()+".jp2");

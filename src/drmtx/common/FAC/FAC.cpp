@@ -154,8 +154,8 @@ void CFACTransmit::FACParam(CVector<_BINARY>* pbiFACData, CParameter& Parameter)
 	(*pbiFACData).Enqueue((uint32_t) Parameter.iFECMode, 1);
 	/* Bits 11-12: LDPC rate (0=1/2, 1=2/3, 2=3/4, 3=5/6) */
 	(*pbiFACData).Enqueue((uint32_t) Parameter.iLDPCRate, 2);
-	/* Bit 13: Image codec (0=JP2, 1=AVIF), tied to fecMode */
-	(*pbiFACData).Enqueue((uint32_t) Parameter.iFECMode, 1);
+	/* Bit 13: Image codec (0=JP2, 1=AVIF) */
+	(*pbiFACData).Enqueue((uint32_t) Parameter.iImageCodec, 1);
 
 	{
 		int	iLenLabel;

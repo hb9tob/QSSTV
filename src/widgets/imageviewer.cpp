@@ -860,7 +860,7 @@ bool imageViewer::copyToBuffer(QByteArray *ba)
 
   if (compressedImageData.isEmpty())
     {
-      if (drmParams.fecMode == 1)
+      if (drmParams.imageCodec == 1)
         compressedImageData=avif.encode(cvimg,im,fileSize,compressionRatio);
       else
         compressedImageData=jp2.encode(cvimg,im,fileSize,compressionRatio);
@@ -946,7 +946,7 @@ int imageViewer::applyTemplate()
 #endif
   if (tWidth==0 && tHeight==0 && useCompression)
     {
-      if (drmParams.fecMode == 1)
+      if (drmParams.imageCodec == 1)
         {
           // LDPC+AVIF mode: use selected resolution
           // 0=auto, 1=original, 2=1920x1080, 3=1280x720, 4=640x480, 5=320x240
@@ -994,7 +994,7 @@ int imageViewer::applyTemplate()
       addToLog(QString("No Template, targetW,H=%1,%2").arg(targetWidth).arg(targetHeight), LOGIMAG);
       if(tWidth!=0 && tHeight!=0)
         {
-          if (drmParams.fecMode == 1)
+          if (drmParams.imageCodec == 1)
             {
               // AVIF mode: scale to fit within target, keep aspect ratio, no crop
               displayedImage = QImage(sourceImage
@@ -1064,7 +1064,7 @@ int imageViewer::applyTemplate()
           if(tWidth!=0 && tHeight!=0)
             {
               QImage scaledImage;
-              if (drmParams.fecMode == 1)
+              if (drmParams.imageCodec == 1)
                 {
                   // AVIF mode: keep aspect ratio, no crop
                   scaledImage = sourceImage.scaled(tWidth, tHeight,
@@ -1109,7 +1109,7 @@ int imageViewer::applyTemplate()
       // so the compression ratio is calculated for 3/4 of the image size
       // so its better to calculate the end result for 3/4 of the source imag
 
-      if (drmParams.fecMode == 1)
+      if (drmParams.imageCodec == 1)
         compressedImageData=avif.encode(resultImage->convertToFormat(QImage::Format_RGB32),compressedImage,fileSize,compRatio);
       else
         compressedImageData=jp2.encode(resultImage->convertToFormat(QImage::Format_RGB32),compressedImage,fileSize,compRatio);
@@ -1139,7 +1139,7 @@ int imageViewer::applyTemplate()
           displayedImage=compressedImage;
           int pos;
           pos=imageFileName.lastIndexOf(".",-1);
-          if (drmParams.fecMode == 1)
+          if (drmParams.imageCodec == 1)
             compressedFilename=imageFileName.left(pos)+".avif";
           else
             compressedFilename=imageFileName.left(pos)+".jp2";

@@ -112,8 +112,9 @@ void drmTransmitter::init(QByteArray *ba, QString name, QString format, drmTxPar
   Service.strLabel=params.callsign.toLatin1().data();
   TransmParam->SetServiceParameters(0,Service);
 
-  /* LDPC/AVIF mode */
+  /* FEC and image codec (independent) */
   TransmParam->iFECMode = params.fecMode;
+  TransmParam->iImageCodec = params.imageCodec;
   TransmParam->iLDPCRate = params.ldpcRate;
 
   DRMTransmitter->Init();

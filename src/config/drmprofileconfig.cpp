@@ -54,6 +54,7 @@ void drmProfileConfig::readSettings()
   drmPFArray[0].params.interleaver=qSettings.value("drmPF1Interleave",0).toInt();
   drmPFArray[0].params.reedSolomon=qSettings.value("drmPF1ReedSolomon",0).toInt();
   drmPFArray[0].params.fecMode=qSettings.value("drmPF1FECMode",0).toInt();
+  drmPFArray[0].params.imageCodec=qSettings.value("drmPF1ImageCodec",0).toInt();
   drmPFArray[0].params.ldpcRate=qSettings.value("drmPF1LDPCRate",0).toInt();
   drmPFArray[0].params.resolution=qSettings.value("drmPF1Resolution",0).toInt();
 
@@ -65,6 +66,7 @@ void drmProfileConfig::readSettings()
   drmPFArray[1].params.interleaver=qSettings.value("drmPF2Interleave",0).toInt();
   drmPFArray[1].params.reedSolomon=qSettings.value("drmPF2ReedSolomon",0).toInt();
   drmPFArray[1].params.fecMode=qSettings.value("drmPF2FECMode",0).toInt();
+  drmPFArray[1].params.imageCodec=qSettings.value("drmPF2ImageCodec",0).toInt();
   drmPFArray[1].params.ldpcRate=qSettings.value("drmPF2LDPCRate",0).toInt();
   drmPFArray[1].params.resolution=qSettings.value("drmPF2Resolution",0).toInt();
 
@@ -76,6 +78,7 @@ void drmProfileConfig::readSettings()
   drmPFArray[2].params.interleaver=qSettings.value("drmPF3Interleave",0).toInt();
   drmPFArray[2].params.reedSolomon=qSettings.value("drmPF3ReedSolomon",0).toInt();
   drmPFArray[2].params.fecMode=qSettings.value("drmPF3FECMode",0).toInt();
+  drmPFArray[2].params.imageCodec=qSettings.value("drmPF3ImageCodec",0).toInt();
   drmPFArray[2].params.ldpcRate=qSettings.value("drmPF3LDPCRate",0).toInt();
   drmPFArray[2].params.resolution=qSettings.value("drmPF3Resolution",0).toInt();
   qSettings.endGroup();
@@ -96,6 +99,7 @@ void drmProfileConfig::writeSettings()
   qSettings.setValue("drmPF1Interleave",drmPFArray[0].params.interleaver);
   qSettings.setValue("drmPF1ReedSolomon",drmPFArray[0].params.reedSolomon);
   qSettings.setValue("drmPF1FECMode",drmPFArray[0].params.fecMode);
+  qSettings.setValue("drmPF1ImageCodec",drmPFArray[0].params.imageCodec);
   qSettings.setValue("drmPF1LDPCRate",drmPFArray[0].params.ldpcRate);
   qSettings.setValue("drmPF1Resolution",drmPFArray[0].params.resolution);
   qSettings.setValue ("drmPF2Name",drmPFArray[1].name);
@@ -106,6 +110,7 @@ void drmProfileConfig::writeSettings()
   qSettings.setValue("drmPF2Interleave",drmPFArray[1].params.interleaver);
   qSettings.setValue("drmPF2ReedSolomon",drmPFArray[1].params.reedSolomon);
   qSettings.setValue("drmPF2FECMode",drmPFArray[1].params.fecMode);
+  qSettings.setValue("drmPF2ImageCodec",drmPFArray[1].params.imageCodec);
   qSettings.setValue("drmPF2LDPCRate",drmPFArray[1].params.ldpcRate);
   qSettings.setValue("drmPF2Resolution",drmPFArray[1].params.resolution);
 
@@ -117,6 +122,7 @@ void drmProfileConfig::writeSettings()
   qSettings.setValue("drmPF3Interleave",drmPFArray[2].params.interleaver);
   qSettings.setValue("drmPF3ReedSolomon",drmPFArray[2].params.reedSolomon);
   qSettings.setValue("drmPF3FECMode",drmPFArray[2].params.fecMode);
+  qSettings.setValue("drmPF3ImageCodec",drmPFArray[2].params.imageCodec);
   qSettings.setValue("drmPF3LDPCRate",drmPFArray[2].params.ldpcRate);
   qSettings.setValue("drmPF3Resolution",drmPFArray[2].params.resolution);
   qSettings.endGroup();
@@ -139,6 +145,7 @@ void drmProfileConfig::getParams()
   getIndex(drmPFArray[0].params.interleaver,ui->drmPF1InterleaveComboBox);
   getIndex(drmPFArray[0].params.reedSolomon,ui->drmPF1ReedSolomonComboBox);
   getIndex(drmPFArray[0].params.fecMode,ui->drmPF1FECModeComboBox);
+  getIndex(drmPFArray[0].params.imageCodec,ui->drmPF1ImageCodecComboBox);
   getIndex(drmPFArray[0].params.ldpcRate,ui->drmPF1LDPCRateComboBox);
 
   getValue(drmPFArray[1].name,ui->namePF2LineEdit);
@@ -150,6 +157,7 @@ void drmProfileConfig::getParams()
   getIndex(drmPFArray[1].params.interleaver,ui->drmPF2InterleaveComboBox);
   getIndex(drmPFArray[1].params.reedSolomon,ui->drmPF2ReedSolomonComboBox);
   getIndex(drmPFArray[1].params.fecMode,ui->drmPF2FECModeComboBox);
+  getIndex(drmPFArray[1].params.imageCodec,ui->drmPF2ImageCodecComboBox);
   getIndex(drmPFArray[1].params.ldpcRate,ui->drmPF2LDPCRateComboBox);
 
   getValue(drmPFArray[2].name,ui->namePF3LineEdit);
@@ -161,6 +169,7 @@ void drmProfileConfig::getParams()
   getIndex(drmPFArray[2].params.interleaver,ui->drmPF3InterleaveComboBox);
   getIndex(drmPFArray[2].params.reedSolomon,ui->drmPF3ReedSolomonComboBox);
   getIndex(drmPFArray[2].params.fecMode,ui->drmPF3FECModeComboBox);
+  getIndex(drmPFArray[2].params.imageCodec,ui->drmPF3ImageCodecComboBox);
   getIndex(drmPFArray[2].params.ldpcRate,ui->drmPF3LDPCRateComboBox);
   changed=false;
   if( diff(drmPFArrayCopy[0],drmPFArray[0])
@@ -181,6 +190,7 @@ bool drmProfileConfig::diff(sprofile a,sprofile b)
       || a.params.interleaver!=b.params.interleaver
       || a.params.reedSolomon!=b.params.reedSolomon
       || a.params.fecMode!=b.params.fecMode
+      || a.params.imageCodec!=b.params.imageCodec
       || a.params.ldpcRate!=b.params.ldpcRate
       || a.params.resolution!=b.params.resolution);
 
@@ -196,6 +206,7 @@ void  drmProfileConfig::setParams()
   setIndex(drmPFArray[0].params.interleaver,ui->drmPF1InterleaveComboBox);
   setIndex(drmPFArray[0].params.reedSolomon,ui->drmPF1ReedSolomonComboBox);
   setIndex(drmPFArray[0].params.fecMode,ui->drmPF1FECModeComboBox);
+  setIndex(drmPFArray[0].params.imageCodec,ui->drmPF1ImageCodecComboBox);
   setIndex(drmPFArray[0].params.ldpcRate,ui->drmPF1LDPCRateComboBox);
 
   setValue(drmPFArray[1].name,ui->namePF2LineEdit);
@@ -206,6 +217,7 @@ void  drmProfileConfig::setParams()
   setIndex(drmPFArray[1].params.interleaver,ui->drmPF2InterleaveComboBox);
   setIndex(drmPFArray[1].params.reedSolomon,ui->drmPF2ReedSolomonComboBox);
   setIndex(drmPFArray[1].params.fecMode,ui->drmPF2FECModeComboBox);
+  setIndex(drmPFArray[1].params.imageCodec,ui->drmPF2ImageCodecComboBox);
   setIndex(drmPFArray[1].params.ldpcRate,ui->drmPF2LDPCRateComboBox);
 
   setValue(drmPFArray[2].name,ui->namePF3LineEdit);
@@ -216,6 +228,7 @@ void  drmProfileConfig::setParams()
   setIndex(drmPFArray[2].params.interleaver,ui->drmPF3InterleaveComboBox);
   setIndex(drmPFArray[2].params.reedSolomon,ui->drmPF3ReedSolomonComboBox);
   setIndex(drmPFArray[2].params.fecMode,ui->drmPF3FECModeComboBox);
+  setIndex(drmPFArray[2].params.imageCodec,ui->drmPF3ImageCodecComboBox);
   setIndex(drmPFArray[2].params.ldpcRate,ui->drmPF3LDPCRateComboBox);
 }
 

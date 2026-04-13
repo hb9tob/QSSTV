@@ -110,6 +110,7 @@ void CParameter::init()
   eMSCCodingScheme=CS_1_SM;
   eSDCCodingScheme=CS_1_SM;
   iFECMode=0;
+  iImageCodec=0;
   iLDPCRate=0;
   iNumAudioService=0;
   iNumDataService=0;
