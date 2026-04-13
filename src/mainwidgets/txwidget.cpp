@@ -233,6 +233,10 @@ void txWidget::slotGetTXParams()
       || drmParams.resolution != oldResolution)
     {
       imageViewerPtr->clearCompressedData();
+      drmParams.callsign=myCallsign;
+      txFunctionsPtr->forgetTxFileName();
+      applyTemplate();
+      return;
     }
   drmParams.callsign=myCallsign;
   updateTxTime();
