@@ -147,18 +147,37 @@ void CMLCEncoder::ProcessDataInternal(CParameter& TransmParam)
 			for (i = 0; i < iM[j][0] + iM[j][1]; i++)
 				vecLDPCInfoAccum[infoOfs + idx++] = vecEncInBuffer[j][i];
 
-		/* First frame ever: repeat to all 6 positions (run-in) */
+		/* First frame ever: repeat to all 6 positions, encode
+		   immediately and copy to Out so output starts with valid LDPC */
 		if (ldpcPos == 0 && !bLDPCFirstEncDone)
 		{
 			for (int f = 1; f < iLDPCTotalFrames; f++)
 				for (i = 0; i < iInfoBitsPerFrame; i++)
 					vecLDPCInfoAccum[f * iInfoBitsPerFrame + i] =
 						vecLDPCInfoAccum[i];
+			/* Encode run-in immediately */
+			int ldpcK = BICMEncoder.getK();
+			int ldpcN = BICMEncoder.getN();
+			int codedIdx = iLDPCFillerBits;
+			int infoIdx2 = 0;
+			for (int blk = 0; blk < iLDPCNumBlocks; blk++)
+			{
+				CVector<_DECISION> blkIn(ldpcK);
+				CVector<_DECISION> blkOut(ldpcN);
+				for (i = 0; i < ldpcK; i++)
+					blkIn[i] = (infoIdx2 < iTotalInfoBits) ?
+						vecLDPCInfoAccum[infoIdx2++] : 0;
+				BICMEncoder.Encode(blkIn, blkOut);
+				for (i = 0; i < ldpcN && codedIdx < iTotalCodedBits; i++)
+					vecLDPCCodedNew[codedIdx++] = blkOut[i];
+			}
+			for (i = 0; i < iTotalCodedBits; i++)
+				vecLDPCCodedOut[i] = vecLDPCCodedNew[i];
+			bLDPCFirstEncDone = true;
 		}
 
-		/* OUTPUT first, THEN encode. This ensures all 6 frames of a
-		   cycle output from the SAME encode (the previous one).
-		   The new encode is stored for the NEXT cycle. */
+		/* OUTPUT first, THEN encode. All 6 frames of a cycle
+		   output from the SAME encode. */
 
 		/* Output coded bits for THIS frame from the READ buffer */
 		{
