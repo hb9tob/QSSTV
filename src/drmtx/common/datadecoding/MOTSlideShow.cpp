@@ -82,7 +82,10 @@ void CMOTSlideShowEncoder::Init (CParameter &TParam)
     MOTDAB.Reset ();
     AddNextPicture ();
     allDataSend=false;
-    extraBlocks=5;
+    bUseLDPC = (TParam.iFECMode == 1);
+    /* LDPC needs 2 full 6-frame cycles after last data to guarantee
+       the RX decodes and outputs the final LDPC block */
+    extraBlocks = bUseLDPC ? 12 : 5;
     sliceCounter=0;
     MOTDAB.prepareSegmentList(1);  // one repitition
     addToLog("Init and loading raw data",LOGDRMMOT);

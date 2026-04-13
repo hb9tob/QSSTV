@@ -72,8 +72,9 @@ int msdhardsdc (double *, double *, int, double *, int, double *, int, int, int,
 /*void copy_mplex_desc(struct mplex_desc *, struct mplex_desc *);
 int cmp_mplex_desc(struct mplex_desc *, struct mplex_desc *); */ 
 int msdhardmsc (double *, double *, int, double *, int, double *, int, int, int, int *, int *, int, int, /*@out@ */ double *,
-                /*@out@ */ double *, 
+                /*@out@ */ double *,
                 double *, double *, double *);
+void ldpc_rx_reset(void);
 void bits2bytes (double *, int, unsigned char /*@out@ */ *);
 void crc16_bytewise (double /*@out@ */ *, unsigned char *, long);
 int deflate_uncompress (unsigned char *, int, char /*@out@ */ *, int, 

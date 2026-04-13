@@ -153,7 +153,8 @@ static int decode_block(ldpc_graph_t *g, float *blockLLR, char *infoOut,
 
     /* Iterative decoding */
     int syndromeOK = 0;
-    for (int iter = 0; iter < max_iter; iter++)
+    int iter;
+    for (iter = 0; iter < max_iter; iter++)
     {
         /* Check-node update (normalized min-sum) */
         for (int ci = 0; ci < g->numChecks; ci++)
@@ -203,20 +204,15 @@ static int decode_block(ldpc_graph_t *g, float *blockLLR, char *infoOut,
         }
 
         if (syndromeOK)
-        {
-            printf("LDPC: converged at iter %d\n", iter);
             break;
-        }
     }
-    if (!syndromeOK)
-        printf("LDPC: NOT converged after %d iters\n", max_iter);
 
     /* Extract info bits (first k positions, but only n_info actual data) */
     int outBits = (n_info < k) ? n_info : k;
     for (int i = 0; i < outBits; i++)
         infoOut[i] = (g->varBelief[i] < 0.0f) ? 1 : 0;
 
-    return 0;
+    return syndromeOK ? iter : -max_iter;
 }
 
 int ldpc_decode(float *llr, int n_coded_bits, int ldpc_rate, int z,
@@ -236,8 +232,8 @@ int ldpc_decode(float *llr, int n_coded_bits, int ldpc_rate, int z,
     graph_init(&graph, ldpc_rate, z);
 
     /* Single block decode — no puncturing, no multi-block */
-    decode_block(&graph, llr, infoout, max_iter, n_coded_bits, max_info_bits);
+    int result = decode_block(&graph, llr, infoout, max_iter, n_coded_bits, max_info_bits);
 
     graph_free(&graph);
-    return 0;
+    return result;
 }

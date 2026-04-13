@@ -19,6 +19,7 @@
 #include <errno.h>
 #include <math.h>
 #include <string.h>
+#include <stdint.h>
 
 /* #include "viterbi_decode.h" */
 #include "ldpc_decode.h"
@@ -35,6 +36,15 @@ static char  ldpc_decoded_info[60000]; /* decoded info bits for 6 frames */
 static int   ldpc_decoded_valid = 0;   /* 1 = ldpc_decoded_info has valid data */
 static int   ldpc_rx_sf_parity = 0;   /* superframe parity tracker (0/1) */
 static int   ldpc_rx_last_identity = -1; /* to detect superframe boundary */
+
+/* Reset LDPC accumulation state (called when sync is lost) */
+void ldpc_rx_reset(void)
+{
+  ldpc_decoded_valid = 0;
+  ldpc_rx_sf_parity = 0;
+  ldpc_rx_last_identity = -1;
+  memset(bicm_llr_accum, 0, sizeof(bicm_llr_accum));
+}
 
 #define ITER_BREAK
 #define CONSIDERING_SNR
@@ -84,7 +94,9 @@ int msdhardmsc(double *received_real, double *received_imag, int Lrxdata,
   int HMmix = 0, HMsym = 0;
   int i;
   static float bicm_llr[12000]; /* BICM: de-interleaved LLRs for all levels combined */
-
+  static int msc_call_count = 0;
+  if (msc_call_count++ % 50 == 0)
+    fprintf(stderr, "MSC called #%d ldpc=%d\n", msc_call_count, ldpc_mode_flag);
 
 #ifdef CONSIDERING_SNR
   double *signal_to_noise_ratio;
@@ -493,62 +505,28 @@ int msdhardmsc(double *received_real, double *received_imag, int Lrxdata,
 	  if (fac_id == 0 && ldpc_rx_last_identity == 2)
 	    ldpc_rx_sf_parity ^= 1; /* new superframe → toggle parity */
 	  ldpc_rx_last_identity = fac_id;
-	  int ldpc_pos = (ldpc_rx_sf_parity * 3 + fac_id + 1) % 6; /* 0..5, +1 to align with TX */
+	  int ldpc_pos = (ldpc_rx_sf_parity * 3 + fac_id + 1) % 6; /* 0..5, +1 for pipeline delay */
 
-	  /* Print level 0 first 10 hard bits for comparison with TX */
-	  printf("LDPC-RX-IN pos=%d lv0[0..9]: ", ldpc_pos);
-	  for (int db = 0; db < 10; db++)
-	    printf("%d", bicm_llr[db] > 0 ? 1 : 0);
-	  printf("\n");
+	  fprintf(stderr, "LDPC-RX pos=%d fac=%d sfp=%d\n", ldpc_pos, fac_id, ldpc_rx_sf_parity);
 
 	  /* Accumulate this frame's LLRs */
 	  int accum_offset = ldpc_pos * this_frame_coded;
 	  for (sample_index = 0; sample_index < this_frame_coded; sample_index++)
 	    bicm_llr_accum[accum_offset + sample_index] = bicm_llr[sample_index];
 
-	  if (ldpc_pos == 5)
-	    {
-	      /* Decode N blocks of z=81 (n=1944).
-		 Layout: [PRBS filler | block0 | block1 | ...] */
-	      int total_coded_6f = 6 * this_frame_coded;
-	      int ldpc_z = 81;
-	      int ldpc_n = ldpc_n_from_z(ldpc_z);
-	      int ldpc_k = ldpc_k_from_z(ldpc_z, ldpc_rate_index);
-	      int num_blocks = total_coded_6f / ldpc_n;
-	      int filler_bits = total_coded_6f - num_blocks * ldpc_n;
+	  /* OUTPUT first, THEN decode — same principle as TX.
+	     At pos=5 the old buffer still holds the previous cycle's data,
+	     so we must output before overwriting with the new decode. */
+	  /* WiFi-style: MSC payload = LDPC capacity / 6 (same as TX) */
+	  int ldpc_info_cap = (6 * this_frame_coded / ldpc_n_from_z(81))
+			      * ldpc_k_from_z(81, ldpc_rate_index);
+	  int total_info_per_frame = ldpc_info_cap / 6;
 
-	      /* Print first 20 LLR signs of block 0 for comparison with TX */
-	      printf("LDPC-RX-BITS[0..19]: ");
-	      for (int db = 0; db < 20; db++)
-		printf("%d", bicm_llr_accum[filler_bits + db] > 0 ? 1 : 0);
-	      printf(" (>0=1)\n");
-	      printf("LDPC-RX-LLR[0..4]: ");
-	      for (int db = 0; db < 5; db++)
-		printf("%.1f ", bicm_llr_accum[filler_bits + db]);
-	      printf("\n");
-
-	      int info_idx = 0;
-	      for (int blk = 0; blk < num_blocks; blk++)
-		{
-		  float *block_llr = bicm_llr_accum + filler_bits + blk * ldpc_n;
-		  char block_info[1944];
-		  ldpc_decode(block_llr, ldpc_n, ldpc_rate_index, ldpc_z,
-			      block_info, 50, ldpc_k);
-		  for (int bi = 0; bi < ldpc_k && info_idx < 60000; bi++)
-		    ldpc_decoded_info[info_idx++] = block_info[bi];
-		}
-
-	      printf("LDPC-DECODE: blocks=%d filler=%d k=%d total_info_decoded=%d\n",
-		     num_blocks, filler_bits, ldpc_k, info_idx);
-	      ldpc_decoded_valid = 1;
-	    }
-
-	  /* Output this frame's portion from the decoded buffer.
-	     Pipeline: first 6 frames output zeros (warm-up), then
-	     each frame outputs its portion from the last decode. */
-	  int total_info_per_frame = 0;
-	  for (level = 0; level < no_of_levels; level++)
-	    total_info_per_frame += (int) L1_real[level] + (int) L2_real[level];
+	  /* Override L1/L2 for energy dispersal (single-level: all in L2) */
+	  L1_real[0] = 0;
+	  L2_real[0] = total_info_per_frame;
+	  for (level = 1; level < no_of_levels; level++)
+	    { L1_real[level] = 0; L2_real[level] = 0; }
 
 	  if (ldpc_decoded_valid)
 	    {
@@ -562,13 +540,47 @@ int msdhardmsc(double *received_real, double *received_imag, int Lrxdata,
 	    }
 	  else
 	    {
-	      /* No decoded data yet (warm-up) */
+	      /* No decoded data yet (warm-up): fill with PRBS (X^9+X^5+1)
+		 to avoid fortuitous convergence and energy concentration.
+		 Same PRBS seed as TX run-in so energy dispersal stays coherent. */
+	      uint32_t prbs_reg = ~(uint32_t)0;
 	      for (level = 0; level < no_of_levels; level++)
 		{
 		  int info_bits = (int) L1_real[level] + (int) L2_real[level];
 		  for (sample_index = 0; sample_index < info_bits; sample_index++)
-		    infoout[level][sample_index] = 0;
+		    {
+		      unsigned char bit = ((prbs_reg >> 4) ^ (prbs_reg >> 8)) & 1;
+		      prbs_reg = (prbs_reg << 1) | bit;
+		      infoout[level][sample_index] = bit;
+		    }
 		}
+	    }
+
+	  /* Now decode AFTER output — new data for NEXT cycle's output */
+	  if (ldpc_pos == 5)
+	    {
+	      int total_coded_6f = 6 * this_frame_coded;
+	      int ldpc_z = 81;
+	      int ldpc_n = ldpc_n_from_z(ldpc_z);
+	      int ldpc_k = ldpc_k_from_z(ldpc_z, ldpc_rate_index);
+	      int num_blocks = total_coded_6f / ldpc_n;
+	      int filler_bits = total_coded_6f - num_blocks * ldpc_n;
+
+	      int info_idx = 0;
+	      int converged_cnt = 0;
+	      for (int blk = 0; blk < num_blocks; blk++)
+		{
+		  float *block_llr = bicm_llr_accum + filler_bits + blk * ldpc_n;
+		  char block_info[1944];
+		  int rc = ldpc_decode(block_llr, ldpc_n, ldpc_rate_index, ldpc_z,
+				       block_info, 50, ldpc_k);
+		  if (rc >= 0) converged_cnt++;
+		  for (int bi = 0; bi < ldpc_k && info_idx < 60000; bi++)
+		    ldpc_decoded_info[info_idx++] = block_info[bi];
+		}
+	      fprintf(stderr, "LDPC-DECODE: %d/%d converged, filler=%d k=%d info=%d\n",
+		      converged_cnt, num_blocks, filler_bits, ldpc_k, info_idx);
+	      ldpc_decoded_valid = 1;
 	    }
 	}
       PL1 = PL1_imag;

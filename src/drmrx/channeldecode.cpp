@@ -185,6 +185,7 @@ void channel_decoding(void)
     {
       MSCAvailable=false;
       /* clear various datastructures */
+      ldpc_rx_reset();
       frame_index = 1;
       enough_frames = 0;
       frame_count = 0;

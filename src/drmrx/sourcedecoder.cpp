@@ -75,9 +75,14 @@ bool sourceDecoder::decode()
   int N_partB;
   //  if(!demodulatorPtr->isTimeSync())
 
+  static int dec_call = 0;
+  if (dec_call++ % 50 == 0)
+    fprintf(stderr, "SRC-DEC: call #%d valid=%d audio=%d\n",
+            dec_call, channel_decoded_data_buffer_data_valid, audio_data_flag);
   if (channel_decoded_data_buffer_data_valid != 1)  return false;
   if (audio_data_flag == 0)
     {
+      fprintf(stderr, "SRC-DEC: audio_data_flag=0, rejected\n");
       addToLog("audio decoding not implemented in qsstv !\n",LOGDRMSRC); return false;
     }
   addToLog("Datapacket received",LOGPERFORM);
@@ -91,14 +96,17 @@ bool sourceDecoder::decode()
   crc16_bytewise(&checksum, packetBuffer,N_partB);
   if(fabs (checksum) <= DBL_EPSILON)
     {
+      fprintf(stderr, "SRC-DEC: CRC OK len=%d\n", N_partB);
       if(!setupDataBlock(packetBuffer,true,N_partB))
         {
+          fprintf(stderr, "SRC-DEC: setupDataBlock FAILED\n");
           msc_valid=INVALID;
           return false;
         }
     }
   else
     {
+      fprintf(stderr, "SRC-DEC: CRC FAIL len=%d valid=%d\n", N_partB, channel_decoded_data_buffer_data_valid);
       msc_valid=INVALID;
       return false;
     }

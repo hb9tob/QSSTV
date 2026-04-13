@@ -30,7 +30,8 @@
  *   max_info_bits  - Maximum info bits to write (actual data, before shortening)
  *
  * Returns:
- *   0 on success, nonzero on error
+ *   >= 0 : converged at iteration N (0 = immediate)
+ *   < 0  : -max_iter if not converged, or other negative on error
  */
 int ldpc_decode(float *llr, int n_coded_bits, int ldpc_rate, int z,
                 char *infoout, int max_iter, int max_info_bits);

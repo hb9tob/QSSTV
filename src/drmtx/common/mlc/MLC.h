@@ -95,6 +95,7 @@ protected:
 	int					iLDPCTotalFrames;  /* frames per interleaver period (6 or 2) */
 	int					iLDPCz;            /* expansion factor (81 for WiFi) */
 	int					iLDPCNumBlocks;    /* number of n=1944 blocks per 6 frames */
+	int					iLDPCInfoCapacity; /* max info bits carried by LDPC (blocks*k) */
 	int					iLDPCFillerBits;   /* PRBS filler bits (low-freq subcarriers) */
 	bool				bLDPCFirstEncDone; /* first LDPC encode done (run-in) */
 	int					iLDPCSuperframeParity; /* 0 or 1: even/odd superframe */
