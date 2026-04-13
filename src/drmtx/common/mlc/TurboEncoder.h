@@ -21,11 +21,11 @@
 #ifndef TURBO_ENCODER_H
 #define TURBO_ENCODER_H
 
-/* Turbo code rates */
-#define TURBO_RATE_1_3  0
-#define TURBO_RATE_1_2  1
-#define TURBO_RATE_2_3  2
-#define TURBO_RATE_3_4  3
+/* Turbo code rates — aligned with DRM profile iLDPCRate index */
+#define TURBO_RATE_1_2  0
+#define TURBO_RATE_2_3  1
+#define TURBO_RATE_3_4  2
+#define TURBO_RATE_5_6  3
 
 /*
  * turbo_encode - Encode a block of info bits with turbo code

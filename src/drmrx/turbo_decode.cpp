@@ -221,13 +221,7 @@ int turbo_decode(const float *llr, int K, int rate,
 
   int idx = 0;
 
-  if (rate == TURBO_RATE_1_3)
-  {
-    for (int i = 0; i < K; i++) Lch_sys[i] = llr[idx++];
-    for (int i = 0; i < K; i++) Lch_par1[i] = llr[idx++];
-    for (int i = 0; i < K; i++) Lch_par2[i] = llr[idx++];
-  }
-  else if (rate == TURBO_RATE_1_2)
+  if (rate == TURBO_RATE_1_2)
   {
     for (int i = 0; i < K; i++) Lch_sys[i] = llr[idx++];
     for (int i = 0; i < K; i++)
@@ -257,6 +251,17 @@ int turbo_decode(const float *llr, int K, int rate,
       if (i % 6 == 0)
         Lch_par1[i] = llr[idx++];
       else if (i % 6 == 3)
+        Lch_par2[i] = llr[idx++];
+    }
+  }
+  else if (rate == TURBO_RATE_5_6)
+  {
+    for (int i = 0; i < K; i++) Lch_sys[i] = llr[idx++];
+    for (int i = 0; i < K; i++)
+    {
+      if (i % 10 == 0)
+        Lch_par1[i] = llr[idx++];
+      else if (i % 10 == 5)
         Lch_par2[i] = llr[idx++];
     }
   }

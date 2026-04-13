@@ -466,13 +466,20 @@ int msdhardmsc(double *received_real, double *received_imag, int Lrxdata,
 	  for (level = 0; level < no_of_levels; level++)
 	    total_info += (int) L1_real[level] + (int) L2_real[level];
 
-	  char *decoded = new char[total_info + 64];
-	  int iters = turbo_decode(turbo_llr_buf, total_info, ldpc_rate_index,
-				   decoded, 8);
-	  fprintf(stderr, "TURBO-RX: K=%d coded=%d iters=%d\n",
-		  total_info, total_coded, iters);
+	  /* Compute K from coded frame (same as TX) */
+	  int K = total_coded - 12;
+	  if (ldpc_rate_index == TURBO_RATE_1_2) K /= 2;
+	  else if (ldpc_rate_index == TURBO_RATE_2_3) K = (K * 2) / 3;
+	  else if (ldpc_rate_index == TURBO_RATE_3_4) K = (K * 3) / 4;
+	  else if (ldpc_rate_index == TURBO_RATE_5_6) K = (K * 5) / 6;
 
-	  /* Distribute decoded bits to infoout per level */
+	  char *decoded = new char[K + 64];
+	  int iters = turbo_decode(turbo_llr_buf, K, ldpc_rate_index,
+				   decoded, 8);
+	  fprintf(stderr, "TURBO-RX: K=%d info=%d coded=%d iters=%d\n",
+		  K, total_info, total_coded, iters);
+
+	  /* Distribute decoded bits to infoout per level (first total_info bits) */
 	  int idx = 0;
 	  for (level = 0; level < no_of_levels; level++)
 	    {

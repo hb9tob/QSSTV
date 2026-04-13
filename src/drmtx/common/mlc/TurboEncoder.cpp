@@ -110,10 +110,10 @@ int turbo_coded_length(int K, int rate)
   /* Mother code: 3*K + 12 (systematic + 2 parities + 12 tail) */
   switch (rate)
   {
-  case TURBO_RATE_1_3: return 3 * K + 12;
   case TURBO_RATE_1_2: return 2 * K + 12;
   case TURBO_RATE_2_3: return (3 * K) / 2 + 12;
   case TURBO_RATE_3_4: return (4 * K) / 3 + 12;
+  case TURBO_RATE_5_6: return (6 * K) / 5 + 12;
   default: return -1;
   }
 }
@@ -142,14 +142,7 @@ int turbo_encode(const char *infoBits, int K, char *codedBits, int rate)
   /* Assemble output with puncturing */
   int n = 0;
 
-  if (rate == TURBO_RATE_1_3)
-  {
-    /* No puncturing: systematic + parity1 + parity2 */
-    for (int i = 0; i < K; i++) codedBits[n++] = infoBits[i];
-    for (int i = 0; i < K; i++) codedBits[n++] = parity1[i];
-    for (int i = 0; i < K; i++) codedBits[n++] = parity2[i];
-  }
-  else if (rate == TURBO_RATE_1_2)
+  if (rate == TURBO_RATE_1_2)
   {
     /* Puncture: keep all systematic, alternate parity1/parity2 */
     for (int i = 0; i < K; i++) codedBits[n++] = infoBits[i];
@@ -182,6 +175,18 @@ int turbo_encode(const char *infoBits, int K, char *codedBits, int rate)
       if (i % 6 == 0)
         codedBits[n++] = parity1[i];
       else if (i % 6 == 3)
+        codedBits[n++] = parity2[i];
+    }
+  }
+  else if (rate == TURBO_RATE_5_6)
+  {
+    /* Keep systematic, every 10th from each parity stream */
+    for (int i = 0; i < K; i++) codedBits[n++] = infoBits[i];
+    for (int i = 0; i < K; i++)
+    {
+      if (i % 10 == 0)
+        codedBits[n++] = parity1[i];
+      else if (i % 10 == 5)
         codedBits[n++] = parity2[i];
     }
   }

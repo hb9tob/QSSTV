@@ -127,25 +127,34 @@ void CMLCEncoder::ProcessDataInternal(CParameter& TransmParam)
 	/* Channel encoder ------------------------------------------------------ */
 	if (bUseTurbo)
 	{
-		/* Turbo encode: concatenate all levels' info bits, encode,
-		   distribute coded bits back to levels' output buffers. */
+		/* Turbo encode: K is derived from the coded frame size so
+		   the turbo output fills the frame exactly. MSC data fills
+		   the first totalInfo bits, rest is zero-padded. */
+		int totalCoded = iLevels * iNumEncBits;
 		int totalInfo = 0;
 		for (j = 0; j < iLevels; j++)
 			totalInfo += iM[j][0] + iM[j][1];
-		int totalCoded = iLevels * iNumEncBits;
 
-		char *inBuf = new char[totalInfo];
-		char *outBuf = new char[totalCoded + 64]; /* +64 for tail */
+		/* Compute K from coded size: turbo_coded_length(K,rate) = totalCoded */
+		int K = totalCoded - 12; /* subtract tail */
+		if (iTurboRate == TURBO_RATE_1_2) K /= 2;
+		else if (iTurboRate == TURBO_RATE_2_3) K = (K * 2) / 3;
+		else if (iTurboRate == TURBO_RATE_3_4) K = (K * 3) / 4;
+		else if (iTurboRate == TURBO_RATE_5_6) K = (K * 5) / 6;
+
+		char *inBuf = new char[K];
+		char *outBuf = new char[totalCoded + 64];
+		/* Fill with MSC data, zero-pad if K > totalInfo */
 		int idx = 0;
 		for (j = 0; j < iLevels; j++)
 			for (i = 0; i < iM[j][0] + iM[j][1]; i++)
 				inBuf[idx++] = (char)vecEncInBuffer[j][i];
+		for (; idx < K; idx++)
+			inBuf[idx] = 0;
 
-		int nCoded = turbo_encode(inBuf, totalInfo, outBuf, iTurboRate);
+		int nCoded = turbo_encode(inBuf, K, outBuf, iTurboRate);
 
-		/* Distribute coded bits to level output buffers.
-		   Pad with zeros if turbo produces fewer bits than expected
-		   (due to puncturing mismatch). Truncate if more. */
+		/* Distribute coded bits to level output buffers */
 		idx = 0;
 		for (j = 0; j < iLevels; j++)
 			for (i = 0; i < iNumEncBits; i++)
