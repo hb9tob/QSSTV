@@ -297,6 +297,16 @@
     </layout>
    </item>
    <item>
+    <widget class="QLabel" name="stereoNoteLabel">
+     <property name="text">
+      <string>Note: TX audio is duplicated on both channels (unless PTT tone is enabled on the other channel).</string>
+     </property>
+     <property name="wordWrap">
+      <bool>true</bool>
+     </property>
+    </widget>
+   </item>
+   <item>
     <layout class="QHBoxLayout" name="horizontalLayout_preemph">
      <item>
       <widget class="QCheckBox" name="preEmphasisCheckBox">
