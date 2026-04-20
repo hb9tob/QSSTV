@@ -297,6 +297,31 @@
     </layout>
    </item>
    <item>
+    <layout class="QHBoxLayout" name="horizontalLayout_preemph">
+     <item>
+      <widget class="QCheckBox" name="preEmphasisCheckBox">
+       <property name="text">
+        <string>HB9HFJ pre-emphasis (TX without built-in pre-emphasis)</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QComboBox" name="preEmphasisTauComboBox">
+       <item>
+        <property name="text">
+         <string>50 µs</string>
+        </property>
+       </item>
+       <item>
+        <property name="text">
+         <string>75 µs</string>
+        </property>
+       </item>
+      </widget>
+     </item>
+    </layout>
+   </item>
+   <item>
     <layout class="QHBoxLayout" name="_5">
      <item>
       <widget class="QSpinBox" name="mbSpinBox">

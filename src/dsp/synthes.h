@@ -64,6 +64,8 @@ private:
 //  waterfallText *waterfallPtr;
   double toneBuffer[TONEBUFLEN];
   uint pttToneCounter;
+  double preEmphPrev;
+  double applyPreEmphasis(double sample);
 //  void fillBuffer();  //only for test
 };
 

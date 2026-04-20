@@ -54,6 +54,19 @@ synthesizer::synthesizer(double txSmpClock)
   oldAngle=0.;
   adjust=0.;
   pttToneCounter=0;
+  preEmphPrev=0.;
+}
+
+double synthesizer::applyPreEmphasis(double sample)
+{
+  if(!preEmphasis) return sample;
+  double tau=(preEmphasisTau==50?50e-6:75e-6);
+  double alpha=exp(-1.0/(tau*txSamplingClock));
+  double y=sample-alpha*preEmphPrev;
+  preEmphPrev=sample;
+  if(y>32767.) y=32767.;
+  else if(y<-32768.) y=-32768.;
+  return y;
 }
 
 synthesizer::~synthesizer()
@@ -133,21 +146,21 @@ void synthesizer::sendSample(double freq)
 
 SOUNDFRAME synthesizer::filter(double sample)
 {
- quint32 tst;
- quint32 ptt;
- tst=(quint32) round(sample);
-// if(outputStereo)
-//   {
-//      tst+=tst<<16;
-//   }
+ sample=applyPreEmphasis(sample);
+ quint32 s=((quint32) round(sample)) & 0xFFFF;
+ quint32 tst=s;
  if(pttToneOtherChannel)
    {
-     ptt=((quint32)toneBuffer[(pttToneCounter++)%TONEBUFLEN])<< 16;
-     tst+=ptt;
+     quint32 ptt=((quint32)toneBuffer[(pttToneCounter++)%TONEBUFLEN]) & 0xFFFF;
+     tst|=ptt<<16;
+   }
+ else
+   {
+     tst|=s<<16;
    }
  if(swapChannel)
    {
-     tst=((tst>>16) & 0xFFFF)+(tst<<16);
+     tst=((tst>>16) & 0xFFFF)|(tst<<16);
    }
  return tst;
 }
@@ -164,18 +177,37 @@ void synthesizer::write(double sample)
 
 
 
-// buffer must already contain correct stereo information
+// buffer arrives with L=signal, R=0 from DRM TX.
+// When tone mode is off, duplicate L to R so stations without
+// pre-emphasis on one channel still receive the full signal.
 void synthesizer::writeBuffer(quint32 *buffer, int len)
 {
   int i;
-   if(swapChannel)
-     {
-       for(i=0;i<len;i++)
+  if(preEmphasis)
+    {
+      for(i=0;i<len;i++)
         {
-           buffer[i]=((buffer[i]>>16) & 0xFFFF)+(buffer[i]<<16);
-
+          qint16 l=(qint16)(buffer[i] & 0xFFFF);
+          double y=applyPreEmphasis((double)l);
+          quint32 lu=((quint32)(qint16)round(y)) & 0xFFFF;
+          buffer[i]=(buffer[i] & 0xFFFF0000) | lu;
         }
-     }
+    }
+  if(!pttToneOtherChannel)
+    {
+      for(i=0;i<len;i++)
+        {
+          quint32 l=buffer[i] & 0xFFFF;
+          buffer[i]=l|(l<<16);
+        }
+    }
+  if(swapChannel)
+    {
+      for(i=0;i<len;i++)
+        {
+          buffer[i]=((buffer[i]>>16) & 0xFFFF)|(buffer[i]<<16);
+        }
+    }
   while((!soundIOPtr->txBuffer.put(buffer,len)) && (soundIOPtr->isPlaying()))
     {
       QThread::usleep(2000);

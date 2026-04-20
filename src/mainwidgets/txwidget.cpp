@@ -53,8 +53,7 @@ txWidget::txWidget(QWidget *parent) :  QWidget(parent), ui(new Ui::txWidget)
   connect(ui->drmTxQAMComboBox,SIGNAL(activated(int)),SLOT(slotGetTXParams()));
   connect(ui->drmTxModeComboBox,SIGNAL(activated(int)),SLOT(slotGetTXParams()));
   connect(ui->drmTxReedSolomonComboBox,SIGNAL(activated(int)),SLOT(slotGetTXParams()));
-  connect(ui->drmTxFECModeComboBox,SIGNAL(activated(int)),SLOT(slotGetTXParams()));
-  connect(ui->drmTxLDPCRateComboBox,SIGNAL(activated(int)),SLOT(slotGetTXParams()));
+  connect(ui->drmTxImageCodecComboBox,SIGNAL(activated(int)),SLOT(slotGetTXParams()));
   connect(ui->drmTxResolutionComboBox,SIGNAL(activated(int)),SLOT(slotGetTXParams()));
 
   connect(ui->templatesComboBox,SIGNAL(currentIndexChanged(int)),SLOT(slotGetParams()));
@@ -218,25 +217,14 @@ void txWidget::slotGetTXParams()
   getIndex(drmParams.qam,ui->drmTxQAMComboBox);
   getIndex(drmParams.robMode,ui->drmTxModeComboBox);
   getIndex(drmParams.reedSolomon,ui->drmTxReedSolomonComboBox);
-  int oldFecMode = drmParams.fecMode;
-  int oldLdpcRate = drmParams.ldpcRate;
+  int oldImageCodec = drmParams.imageCodec;
   int oldResolution = drmParams.resolution;
-  getIndex(drmParams.fecMode,ui->drmTxFECModeComboBox);
-  getIndex(drmParams.ldpcRate,ui->drmTxLDPCRateComboBox);
+  getIndex(drmParams.imageCodec,ui->drmTxImageCodecComboBox);
   getIndex(drmParams.resolution,ui->drmTxResolutionComboBox);
-  bool ldpcEnabled = (drmParams.fecMode == 1);
-  ui->drmTxLDPCRateComboBox->setEnabled(ldpcEnabled);
-  ui->drmLDPCRateLabel->setEnabled(ldpcEnabled);
-  ui->drmTxResolutionComboBox->setEnabled(ldpcEnabled);
-  ui->drmResolutionLabel->setEnabled(ldpcEnabled);
-  /* LDPC mode requires long interleave (6-frame codeword) */
-  if (ldpcEnabled)
-    {
-      ui->drmTxInterleaveComboBox->setCurrentIndex(0); /* 0 = Long */
-      drmParams.interleaver = 0;
-    }
-  ui->drmTxInterleaveComboBox->setEnabled(!ldpcEnabled);
-  if (drmParams.fecMode != oldFecMode || drmParams.ldpcRate != oldLdpcRate
+  bool avifEnabled = (drmParams.imageCodec == 1);
+  ui->drmTxResolutionComboBox->setEnabled(avifEnabled);
+  ui->drmResolutionLabel->setEnabled(avifEnabled);
+  if (drmParams.imageCodec != oldImageCodec
       || drmParams.resolution != oldResolution)
     {
       imageViewerPtr->clearCompressedData();
@@ -289,15 +277,12 @@ void txWidget::setParams()
   setIndex(drmParams.qam,ui->drmTxQAMComboBox);
   setIndex(drmParams.robMode,ui->drmTxModeComboBox);
   setIndex(drmParams.reedSolomon,ui->drmTxReedSolomonComboBox);
-  setIndex(drmParams.fecMode,ui->drmTxFECModeComboBox);
-  setIndex(drmParams.ldpcRate,ui->drmTxLDPCRateComboBox);
+  setIndex(drmParams.imageCodec,ui->drmTxImageCodecComboBox);
   setIndex(drmParams.resolution,ui->drmTxResolutionComboBox);
   {
-    bool ldpcEnabled = (drmParams.fecMode == 1);
-    ui->drmTxLDPCRateComboBox->setEnabled(ldpcEnabled);
-    ui->drmLDPCRateLabel->setEnabled(ldpcEnabled);
-    ui->drmTxResolutionComboBox->setEnabled(ldpcEnabled);
-    ui->drmResolutionLabel->setEnabled(ldpcEnabled);
+    bool avifEnabled = (drmParams.imageCodec == 1);
+    ui->drmTxResolutionComboBox->setEnabled(avifEnabled);
+    ui->drmResolutionLabel->setEnabled(avifEnabled);
   }
   if(compressedSize<MINDRMSIZE) compressedSize=MINDRMSIZE;
   if(compressedSize>MAXDRMSIZE) compressedSize=MAXDRMSIZE;
@@ -315,15 +300,12 @@ void txWidget::copyProfile(drmTxParams d)
   setIndex(drmParams.qam,ui->drmTxQAMComboBox);
   setIndex(drmParams.robMode,ui->drmTxModeComboBox);
   setIndex(drmParams.reedSolomon,ui->drmTxReedSolomonComboBox);
-  setIndex(drmParams.fecMode,ui->drmTxFECModeComboBox);
-  setIndex(drmParams.ldpcRate,ui->drmTxLDPCRateComboBox);
+  setIndex(drmParams.imageCodec,ui->drmTxImageCodecComboBox);
   setIndex(drmParams.resolution,ui->drmTxResolutionComboBox);
   {
-    bool ldpcEnabled = (drmParams.fecMode == 1);
-    ui->drmTxLDPCRateComboBox->setEnabled(ldpcEnabled);
-    ui->drmLDPCRateLabel->setEnabled(ldpcEnabled);
-    ui->drmTxResolutionComboBox->setEnabled(ldpcEnabled);
-    ui->drmResolutionLabel->setEnabled(ldpcEnabled);
+    bool avifEnabled = (drmParams.imageCodec == 1);
+    ui->drmTxResolutionComboBox->setEnabled(avifEnabled);
+    ui->drmResolutionLabel->setEnabled(avifEnabled);
   }
 }
 
