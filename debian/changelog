@@ -1,3 +1,10 @@
+qsstv (9.5.14-1) unstable; urgency=medium
+
+  * Fix analog SSTV image resize broken when DRM AVIF codec is selected
+    (AVIF "scale-to-fit, no crop" branch was leaking into SSTV mode)
+
+ -- HB9TOB <hb9tob@hb9tob.ch>  Mon, 27 Apr 2026 19:00:00 +0200
+
 qsstv (9.5.13-1) unstable; urgency=medium
 
   * Replace HB9HFJ TX pre-emphasis IIR with linear-phase FIR

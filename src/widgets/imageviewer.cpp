@@ -994,7 +994,7 @@ int imageViewer::applyTemplate()
       addToLog(QString("No Template, targetW,H=%1,%2").arg(targetWidth).arg(targetHeight), LOGIMAG);
       if(tWidth!=0 && tHeight!=0)
         {
-          if (drmParams.imageCodec == 1)
+          if (transmissionModeIndex==TRXDRM && drmParams.imageCodec == 1)
             {
               // AVIF mode: scale to fit within target, keep aspect ratio, no crop
               displayedImage = QImage(sourceImage
@@ -1064,7 +1064,7 @@ int imageViewer::applyTemplate()
           if(tWidth!=0 && tHeight!=0)
             {
               QImage scaledImage;
-              if (drmParams.imageCodec == 1)
+              if (transmissionModeIndex==TRXDRM && drmParams.imageCodec == 1)
                 {
                   // AVIF mode: keep aspect ratio, no crop
                   scaledImage = sourceImage.scaled(tWidth, tHeight,
