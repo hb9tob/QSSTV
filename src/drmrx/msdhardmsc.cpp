@@ -414,7 +414,6 @@ int msdhardmsc(double *received_real, double *received_imag, int Lrxdata,
 	     printf("tailpuncturing[... ] = %p\n", tailpuncturing[rp[level]]);
 	     for (i=0; i < 13 ; i++)
 	     printf("inhoud is %d ", tailpuncturing[rp[level]][i]);  */
-	  /* TODO: turbo_decode when fecMode=1 */
 	      error = viterbi_decode(llr, (2 - HMmix) * N,
 				     (level
 				      || (!HMsym
@@ -439,7 +438,6 @@ int msdhardmsc(double *received_real, double *received_imag, int Lrxdata,
 	    }
 	}			/* end loop level */
 
-      /* TODO: turbo decode pipeline will go here */
       PL1 = PL1_imag;
       PL2 = PL2_imag;
       L1 = L1_imag;
@@ -512,7 +510,6 @@ int msdhardmsc(double *received_real, double *received_imag, int Lrxdata,
 
 	      /* printf("Tweede viterbi PL1[0] %g PL2[0] %g L1[0] %g L2[0] %g L1_real[0] %g L2_real[0] %g rp[0] %d\n",
 	         PL1[0], PL2[0], L1[0], L2[0], L1_real[0], L2_real[0], rp[0]);   */
-	      /* TODO: turbo_decode for iterations */
 		  error = viterbi_decode(llr,
 					 (2 - HMmix) * N,
 					 (level

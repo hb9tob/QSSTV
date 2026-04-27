@@ -109,9 +109,7 @@ void CParameter::init()
   eSymbolInterlMode=SI_LONG;
   eMSCCodingScheme=CS_1_SM;
   eSDCCodingScheme=CS_1_SM;
-  iFECMode=0;
   iImageCodec=0;
-  iLDPCRate=0;
   iNumAudioService=0;
   iNumDataService=0;
   iAMSSCarrierMode=0;

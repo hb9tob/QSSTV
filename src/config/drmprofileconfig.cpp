@@ -53,8 +53,6 @@ void drmProfileConfig::readSettings()
   drmPFArray[0].params.protection=qSettings.value("drmPF1Protection",0).toInt();
   drmPFArray[0].params.interleaver=qSettings.value("drmPF1Interleave",0).toInt();
   drmPFArray[0].params.reedSolomon=qSettings.value("drmPF1ReedSolomon",0).toInt();
-  drmPFArray[0].params.fecMode=0;
-  drmPFArray[0].params.ldpcRate=0;
   drmPFArray[0].params.imageCodec=qSettings.value("drmPF1ImageCodec",0).toInt();
   drmPFArray[0].params.resolution=qSettings.value("drmPF1Resolution",0).toInt();
 
@@ -65,8 +63,6 @@ void drmProfileConfig::readSettings()
   drmPFArray[1].params.protection=qSettings.value("drmPF2Protection",0).toInt();
   drmPFArray[1].params.interleaver=qSettings.value("drmPF2Interleave",0).toInt();
   drmPFArray[1].params.reedSolomon=qSettings.value("drmPF2ReedSolomon",0).toInt();
-  drmPFArray[1].params.fecMode=0;
-  drmPFArray[1].params.ldpcRate=0;
   drmPFArray[1].params.imageCodec=qSettings.value("drmPF2ImageCodec",0).toInt();
   drmPFArray[1].params.resolution=qSettings.value("drmPF2Resolution",0).toInt();
 
@@ -77,8 +73,6 @@ void drmProfileConfig::readSettings()
   drmPFArray[2].params.protection=qSettings.value("drmPF3Protection",0).toInt();
   drmPFArray[2].params.interleaver=qSettings.value("drmPF3Interleave",0).toInt();
   drmPFArray[2].params.reedSolomon=qSettings.value("drmPF3ReedSolomon",0).toInt();
-  drmPFArray[2].params.fecMode=0;
-  drmPFArray[2].params.ldpcRate=0;
   drmPFArray[2].params.imageCodec=qSettings.value("drmPF3ImageCodec",0).toInt();
   drmPFArray[2].params.resolution=qSettings.value("drmPF3Resolution",0).toInt();
   qSettings.endGroup();

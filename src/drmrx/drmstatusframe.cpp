@@ -55,9 +55,6 @@ void drmStatusFrame::init()
   prevFreqOff=-9999;
   prevBlockCount=-1;
   drmBusyCount=0;
-  prevFecMode=-1;
-  prevLdpcRate=-1;
-  prevAvifMode=-1;
 }
 
 
@@ -220,33 +217,6 @@ void drmStatusFrame::setStatus()
         default: qam=0; break;
         }
       ui->qamEdit->setText(QString::number(qam));
-    }
-
-  if(prevFecMode!=ldpc_mode_flag)
-    {
-      prevFecMode=ldpc_mode_flag;
-      ui->fecEdit->setText(ldpc_mode_flag ? "LDPC" : "Legacy");
-    }
-  if(prevLdpcRate!=ldpc_rate_index)
-    {
-      prevLdpcRate=ldpc_rate_index;
-      if(ldpc_mode_flag)
-        {
-          static const char *rateStr[] = {"1/2", "2/3", "3/4", "5/6"};
-          int idx = ldpc_rate_index;
-          if(idx < 0) idx = 0;
-          if(idx > 3) idx = 3;
-          ui->ldpcRateEdit->setText(rateStr[idx]);
-        }
-      else
-        {
-          ui->ldpcRateEdit->setText("-");
-        }
-    }
-  if(prevAvifMode!=avif_mode_flag)
-    {
-      prevAvifMode=avif_mode_flag;
-      ui->codecEdit->setText(avif_mode_flag ? "AVIF" : "JP2");
     }
 
   if(prevRxSeg!=rxSegments)

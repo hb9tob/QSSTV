@@ -948,7 +948,7 @@ int imageViewer::applyTemplate()
     {
       if (drmParams.imageCodec == 1)
         {
-          // LDPC+AVIF mode: use selected resolution
+          // AVIF mode: use selected resolution
           // 0=auto, 1=original, 2=1920x1080, 3=1280x720, 4=640x480, 5=320x240
           static const int resW[] = {0, 0, 1920, 1280, 640, 320};
           static const int resH[] = {0, 0, 1080,  720, 480, 240};

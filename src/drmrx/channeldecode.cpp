@@ -74,13 +74,6 @@ int msc_mode_new;
 int interleaver_depth_new;
 bool callsignValid;
 
-/* Mode flags (kept for future turbo code signaling) */
-int ldpc_mode_flag = 0;    /* 0=Viterbi, 1=Turbo (TODO) */
-int ldpc_rate_index = 0;   /* reserved for turbo rate */
-int avif_mode_flag = 0;    /* 0=JP2, 1=AVIF */
-int drm_frame_index = 0;   /* 1..6 position within DRM frame cycle */
-int drm_fac_identity = 0;  /* FAC identity: 0-2 within superframe */
-
 char getfacchar(double *);
 
 void channel_decoding(void)
@@ -322,8 +315,6 @@ void channel_decoding(void)
 
     {
       frame_index = (frame_index % 6) + 1;
-      drm_frame_index = frame_index;
-      drm_frame_index = frame_index; /* expose to msdhardmsc for LDPC sync */
 
       /* in matlab check for existence of symbol_period & symbols_per_frame */
       if ((symbol_period != -1) & (symbols_per_frame != -1))
@@ -397,7 +388,6 @@ void channel_decoding(void)
    /* frame alignment */
   temp = 2.0 * channel_parameters[0] + channel_parameters[1];
   identity = (int) temp % 3;
-  drm_fac_identity = identity; /* expose to msdhardmsc */
   if (identity != ((frame_index - 1) % 3))
       {
       old_ptr = transmission_frame_buffer_wptr;
@@ -411,7 +401,6 @@ void channel_decoding(void)
           channel_transfer_function_buffer[2 * trxfrmbufptr + 1] =channel_transfer_function_buffer[2 * (old_ptr + i) + 1];
         }
       frame_index = identity + 1;
-      drm_frame_index = frame_index;
     }
   interleaver_depth_new = (int) channel_parameters[3];
   msc_mode_new = (int) channel_parameters[4];
@@ -429,13 +418,6 @@ void channel_decoding(void)
     }
   identityCount++;
   audio_data_flag = (int) channel_parameters[6];
-
-  /* FEC/codec flags no longer in FAC — preserved for legacy callsign compat.
-     LDPC mode detected from file extension or future SDC signaling.
-     For now, force legacy Viterbi. TODO: auto-detect or SDC signaling. */
-  ldpc_mode_flag = 0;
-  ldpc_rate_index = 0;
-  avif_mode_flag = 0;
 
   // we need 3 consequetive valid fac's to have a complete call
 
@@ -613,7 +595,6 @@ void channel_decoding(void)
             {
               ratesB[i] = RatesSM64[multiplex_description.PL_PartB][i] - 1;
             }
-          /* Always use legacy formula for L[] — LDPC handles mismatch */
           for (i = 0; i < 3; i++)
             {
               L[i] = 2 * N1 * (RX[ratesA[i]] / RY[ratesA[i]]);
@@ -652,7 +633,6 @@ void channel_decoding(void)
             {
               ratesB[i] = RatesSM16[multiplex_description.PL_PartB][i] - 1;
             }
-          /* Always use legacy formula for L[] — LDPC handles mismatch */
           for (i = 0; i < 2; i++)
             {
               L[i] = 2 * N1 * (RX[ratesA[i]] / RY[ratesA[i]]);
@@ -725,18 +705,6 @@ void channel_decoding(void)
                 }
             }
           Lvspp = 0;
-          /* For LDPC mode, recompute L[1] to match TX encoder:
-             info_bits = (2 * N_MUX * rateNum) / rateDen */
-          if (ldpc_mode_flag)
-            {
-              static const int rateNum[] = {1, 2, 3, 5};
-              static const int rateDen[] = {2, 3, 4, 6};
-              int rIdx = ldpc_rate_index;
-              if (rIdx < 0) rIdx = 0;
-              if (rIdx > 3) rIdx = 3;
-              L[0] = 0;
-              L[1] = (2 * N_MUX * rateNum[rIdx]) / rateDen[rIdx];
-            }
           xin1 = 2 * N1;
           xin2 = 2 * N2;
           if (Part_Deinterleaver != NULL) free(Part_Deinterleaver);
@@ -748,9 +716,6 @@ void channel_decoding(void)
           coldimL = 2;
         }
     }
-
-  /* Update drm_frame_index BEFORE MSC decode so msdhardmsc sees it */
-  drm_frame_index = frame_index;
 
   if (msc_parameters_valid != 0)
     {

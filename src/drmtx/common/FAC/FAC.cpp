@@ -149,10 +149,6 @@ void CFACTransmit::FACParam(CVector<_BINARY>* pbiFACData, CParameter& Parameter)
 
 	}
 
-	/* FEC/codec signaling removed from FAC to preserve legacy callsign
-	   compatibility. Image codec detected from filename extension.
-	   FEC mode and LDPC rate: TODO signal via SDC or MOT header. */
-
 	{
 		int	iLenLabel;
 		int iframet = Parameter.iFrameIDTransm;

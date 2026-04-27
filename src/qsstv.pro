@@ -103,7 +103,6 @@ SOURCES += main.cpp\
     drmrx/psdmean.cpp \
     drmrx/sourcedecoder.cpp \
     drmrx/viterbi_decode.cpp \
-    drmrx/ldpc_decode.cpp \
     drmtx/common/datadecoding/DABMOT.cpp \
     drmtx/common/datadecoding/DataDecoder.cpp \
     drmtx/common/datadecoding/MOTSlideShow.cpp \
@@ -115,7 +114,6 @@ SOURCES += main.cpp\
     drmtx/common/mlc/BitInterleaver.cpp \
     drmtx/common/mlc/ChannelCode.cpp \
     drmtx/common/mlc/ConvEncoder.cpp \
-    drmtx/common/mlc/LDPCEncoder.cpp \
     drmtx/common/mlc/EnergyDispersal.cpp \
     drmtx/common/mlc/MLC.cpp \
     drmtx/common/mlc/QAMMapping.cpp \
@@ -267,7 +265,6 @@ HEADERS  += mainwindow.h \
     drmrx/sourcedecoder.h \
     drmrx/structtemplates.h \
     drmrx/viterbi_decode.h \
-    drmrx/ldpc_decode.h \
     drmtx/common/datadecoding/DABMOT.h \
     drmtx/common/datadecoding/DataDecoder.h \
     drmtx/common/datadecoding/MOTSlideShow.h \
@@ -280,8 +277,6 @@ HEADERS  += mainwindow.h \
     drmtx/common/mlc/BitInterleaver.h \
     drmtx/common/mlc/ChannelCode.h \
     drmtx/common/mlc/ConvEncoder.h \
-    drmtx/common/mlc/LDPCEncoder.h \
-    drmtx/common/mlc/LDPCTables.h \
     drmtx/common/mlc/EnergyDispersal.h \
     drmtx/common/mlc/MLC.h \
     drmtx/common/mlc/QAMMapping.h \

@@ -38,7 +38,7 @@
 /******************************************************************************\
 * MLC-encoder                                                                  *
 \******************************************************************************/
-void CMLCEncoder::ProcessDataInternal(CParameter& TransmParam)
+void CMLCEncoder::ProcessDataInternal(CParameter& /*TransmParam*/)
 {
 	int	i, j;
 	int iElementCounter;
@@ -124,7 +124,6 @@ void CMLCEncoder::ProcessDataInternal(CParameter& TransmParam)
 
 
 	/* Channel encoder ------------------------------------------------------ */
-	/* TODO: when bUseTurbo, use turbo encoder per-frame here */
 	for (j = 0; j < iLevels; j++)
 		ConvEncoder[j].Encode(vecEncInBuffer[j], vecEncOutBuffer[j]);
 
@@ -160,7 +159,6 @@ void CMLCEncoder::InitInternal(CParameter& TransmParam)
 	/* Energy dispersal */
 	EnergyDisp.Init(iNumInBits, iL[2]);
 
-	/* Encoder — legacy Viterbi (TODO: turbo when fecMode=1) */
 	for (i = 0; i < iLevels; i++)
 		ConvEncoder[i].Init(eCodingScheme, eChannelType, iN[0], iN[1],
 			iM[i][0], iM[i][1], iCodeRate[i][0], iCodeRate[i][1], i);
@@ -288,8 +286,6 @@ void CMLC::CalculateParam(CParameter& Parameter, int iNewChannelType)
 			/* iM: Number of bits each level ------------------------------------ */
 			iM[0][0] = 0;
 
-			/* Always use legacy Viterbi formula for iM — LDPC handles
-			   any mismatch via shortening internally */
 			/* M_p,2 = RX_p * floor((2 * N_2 - 12) / RY_p) */
 			iM[0][1] = iPuncturingPatterns[iCodRateCombMSC4SM][0] *
 				(int) ((_REAL) (2 * iN_mux - 12) /

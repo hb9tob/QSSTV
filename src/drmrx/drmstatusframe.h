@@ -53,9 +53,6 @@ private:
   int prevFreqOff;
   int prevBlockCount;
   int drmBusyCount;
-  int prevFecMode;
-  int prevLdpcRate;
-  int prevAvifMode;
 };
 
 QString modeToString(uint mode);
