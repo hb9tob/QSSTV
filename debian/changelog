@@ -1,3 +1,28 @@
+qsstv (9.5.13-1) unstable; urgency=medium
+
+  * Replace HB9HFJ TX pre-emphasis IIR with linear-phase FIR
+    (51-tap, tau=750us, +23dB plateau above 3 kHz, group delay 0.52 ms)
+  * Remove obsolete 50/75 us tau combobox from sound config
+  * Clean up LDPC/turbo remnants in DRM RX status frame, profile config,
+    parameter structures, and dead code paths
+  * Recompute image and TX duration on DRM preset change (re-encode with
+    new codec/resolution before TX)
+  * Fix all compiler warnings (-Wuse-after-free in Matlib, deprecated
+    OpenJPEG bpp field, unused parameter in MLC)
+
+ -- HB9TOB <hb9tob@hb9tob.ch>  Mon, 27 Apr 2026 17:15:00 +0200
+
+qsstv (9.5.12-1) unstable; urgency=medium
+
+  * Remove LDPC / turbo FEC code, Viterbi is the only DRM FEC
+  * AVIF image codec support (independent of FEC, JP2/AVIF selector)
+  * HB9HFJ-style TX pre-emphasis filter (50/75 us, configurable)
+  * Duplicate TX audio L->R when PTT tone channel is disabled
+  * Windows PortAudio backend
+  * QSerialPort for cross-platform PTT
+
+ -- HB9TOB <hb9tob@hb9tob.ch>  Mon, 20 Apr 2026 19:45:00 +0200
+
 qsstv (10.0.0-1) unstable; urgency=medium
 
   * LDPC forward error correction (WiFi 802.11n QC-LDPC codes)

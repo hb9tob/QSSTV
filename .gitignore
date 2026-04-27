@@ -55,3 +55,19 @@ compile_commands.json
 documentation/api/api_html
 documentation/manual/manual_html
 
+# RX/TX runtime logs and built binaries
+src/log*.txt
+src/log*.txt.
+src/turbo*.log
+src/turbo*txt
+src/qsstv
+src/test_turbo
+src/test_turbo.cpp
+
+# Debian build artefacts
+debian/.debhelper/
+debian/files
+debian/qsstv/
+debian/qsstv.debhelper.log
+debian/qsstv.substvars
+debian/debhelper-build-stamp

@@ -7,13 +7,20 @@ export PREFIX = /usr
 	dh $@
 
 override_dh_auto_configure:
-	cd src && qmake PREFIX=$(PREFIX) qsstv.pro
+	cd src && qmake PREFIX=$(PREFIX) "QMAKE_LFLAGS+=-Wl,-rpath,/usr/lib/qsstv" qsstv.pro
 
 override_dh_auto_build:
-	cd src && $(MAKE) -j$(shell nproc)
+	cd src && $(MAKE) -j$(or $(DEB_BUILD_JOBS),2)
 
 override_dh_auto_install:
 	cd src && $(MAKE) INSTALL_ROOT=$(CURDIR)/debian/qsstv install
+	mkdir -p $(CURDIR)/debian/qsstv/usr/lib/qsstv
+	cp -P /usr/local/lib/libavif.so.16 /usr/local/lib/libavif.so.16.4.1 \
+	      /usr/local/lib/libhamlib.so.4 /usr/local/lib/libhamlib.so.4.0.7 \
+	      $(CURDIR)/debian/qsstv/usr/lib/qsstv/
+
+override_dh_shlibdeps:
+	dh_shlibdeps -l$(CURDIR)/debian/qsstv/usr/lib/qsstv -- --ignore-missing-info
 
 override_dh_auto_clean:
 	cd src && [ -f Makefile ] && $(MAKE) clean || true
