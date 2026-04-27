@@ -54,16 +54,43 @@ synthesizer::synthesizer(double txSmpClock)
   oldAngle=0.;
   adjust=0.;
   pttToneCounter=0;
-  preEmphPrev=0.;
+  for(i=0;i<PREEMPH_TAPS;i++) preEmphHistory[i]=0.;
+  preEmphIdx=0;
 }
+
+// Linear-phase FIR pre-emphasis, designed with scipy.signal.firls at fs=48000.
+// Target: H(f)=sqrt(1+(2*pi*f*tau)^2) up to 3 kHz with tau=750us (fc=212 Hz),
+// flat plateau at +23 dB above 3 kHz. Group delay = 25 samples (~0.52 ms).
+static const double HB9HFJ_FIR[51] = {
+  -3.012668532333e-02, -3.567356610582e-02, -3.819826790912e-02, -3.701944821469e-02,
+  -3.198011462333e-02, -2.356015008091e-02, -1.292028433696e-02, -1.866540288822e-03,
+   7.266492885867e-03,  1.180543987010e-02,  8.983896195503e-03, -3.779930904012e-03,
+  -2.860201949966e-02, -6.687706786778e-02, -1.190757611131e-01, -1.846165462072e-01,
+  -2.618262678799e-01, -3.479953031680e-01, -4.395238213953e-01, -5.321474290128e-01,
+  -6.212235141208e-01, -7.020546321242e-01, -7.702225628712e-01, -8.219062671283e-01,
+  -8.541587204921e-01,  1.330736936967e+01, -8.541587204921e-01, -8.219062671283e-01,
+  -7.702225628712e-01, -7.020546321242e-01, -6.212235141208e-01, -5.321474290128e-01,
+  -4.395238213953e-01, -3.479953031680e-01, -2.618262678799e-01, -1.846165462072e-01,
+  -1.190757611131e-01, -6.687706786778e-02, -2.860201949966e-02, -3.779930904012e-03,
+   8.983896195503e-03,  1.180543987010e-02,  7.266492885867e-03, -1.866540288822e-03,
+  -1.292028433696e-02, -2.356015008091e-02, -3.198011462333e-02, -3.701944821469e-02,
+  -3.819826790912e-02, -3.567356610582e-02, -3.012668532333e-02
+};
 
 double synthesizer::applyPreEmphasis(double sample)
 {
   if(!preEmphasis) return sample;
-  double tau=(preEmphasisTau==50?50e-6:75e-6);
-  double alpha=exp(-1.0/(tau*txSamplingClock));
-  double y=sample-alpha*preEmphPrev;
-  preEmphPrev=sample;
+  preEmphHistory[preEmphIdx]=sample;
+  double y=0.;
+  int idx=preEmphIdx;
+  for(int k=0;k<PREEMPH_TAPS;k++)
+    {
+      y+=HB9HFJ_FIR[k]*preEmphHistory[idx];
+      idx--;
+      if(idx<0) idx=PREEMPH_TAPS-1;
+    }
+  preEmphIdx++;
+  if(preEmphIdx>=PREEMPH_TAPS) preEmphIdx=0;
   if(y>32767.) y=32767.;
   else if(y<-32768.) y=-32768.;
   return y;

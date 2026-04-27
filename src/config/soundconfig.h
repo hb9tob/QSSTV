@@ -12,7 +12,6 @@ extern bool alsaSelected;
 extern bool swapChannel;
 extern bool pttToneOtherChannel;
 extern bool preEmphasis;
-extern int preEmphasisTau;
 extern QString inputAudioDevice;
 extern QString outputAudioDevice;
 extern soundBase::edataSrc soundRoutingInput;

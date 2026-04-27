@@ -315,20 +315,6 @@
        </property>
       </widget>
      </item>
-     <item>
-      <widget class="QComboBox" name="preEmphasisTauComboBox">
-       <item>
-        <property name="text">
-         <string>50 µs</string>
-        </property>
-       </item>
-       <item>
-        <property name="text">
-         <string>75 µs</string>
-        </property>
-       </item>
-      </widget>
-     </item>
     </layout>
    </item>
    <item>

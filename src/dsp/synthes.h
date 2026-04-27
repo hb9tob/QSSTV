@@ -64,7 +64,9 @@ private:
 //  waterfallText *waterfallPtr;
   double toneBuffer[TONEBUFLEN];
   uint pttToneCounter;
-  double preEmphPrev;
+  static const int PREEMPH_TAPS = 51;
+  double preEmphHistory[PREEMPH_TAPS];
+  int preEmphIdx;
   double applyPreEmphasis(double sample);
 //  void fillBuffer();  //only for test
 };

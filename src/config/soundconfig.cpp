@@ -43,7 +43,6 @@ bool alsaSelected;
 bool swapChannel;
 bool pttToneOtherChannel;
 bool preEmphasis;
-int preEmphasisTau;
 QString inputAudioDevice;
 QString outputAudioDevice;
 soundBase::edataSrc soundRoutingInput;
@@ -92,7 +91,6 @@ void soundConfig::readSettings()
   swapChannel=qSettings.value("swapChannel",false).toBool();
   pttToneOtherChannel=qSettings.value("pttToneOtherChannel",false).toBool();
   preEmphasis=qSettings.value("preEmphasis",false).toBool();
-  preEmphasisTau=qSettings.value("preEmphasisTau",75).toInt();
   soundRoutingInput=  (soundBase::edataSrc)qSettings.value("soundRoutingInput",  0 ).toInt();
   soundRoutingOutput= (soundBase::edataDst)qSettings.value("soundRoutingOutput", 0 ).toInt();
   recordingSize= qSettings.value("recordingSize", 100 ).toInt();
@@ -114,7 +112,6 @@ void soundConfig::writeSettings()
   qSettings.setValue("swapChannel",swapChannel);
   qSettings.setValue("pttToneOtherChannel",pttToneOtherChannel);
   qSettings.setValue("preEmphasis",preEmphasis);
-  qSettings.setValue("preEmphasisTau",preEmphasisTau);
   qSettings.setValue ("soundRoutingInput", soundRoutingInput );
   qSettings.setValue ("soundRoutingOutput",soundRoutingOutput );
   qSettings.setValue ("recordingSize",recordingSize );
@@ -133,7 +130,6 @@ void soundConfig::setParams()
   setValue(swapChannel,ui->swapChannelCheckBox);
   setValue(pttToneOtherChannel,ui->pttToneCheckBox);
   setValue(preEmphasis,ui->preEmphasisCheckBox);
-  ui->preEmphasisTauComboBox->setCurrentIndex(preEmphasisTau==50?0:1);
   if(soundRoutingInput==soundBase::SNDINCARD) ui->inFromCard->setChecked(true);
   else if (soundRoutingInput==soundBase::SNDINFROMFILE) ui->inFromFile->setChecked(true);
   else ui->inRecordFromCard->setChecked(true);
@@ -162,7 +158,6 @@ void soundConfig::getParams()
   getValue(swapChannel,ui->swapChannelCheckBox);
   getValue(pttToneOtherChannel,ui->pttToneCheckBox);
   getValue(preEmphasis,ui->preEmphasisCheckBox);
-  preEmphasisTau=ui->preEmphasisTauComboBox->currentIndex()==0?50:75;
 
   if (ui->inFromCard->isChecked()) soundRoutingInput=soundBase::SNDINCARD;
   else if(ui->inFromFile->isChecked()) soundRoutingInput=soundBase::SNDINFROMFILE;
