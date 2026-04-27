@@ -134,7 +134,7 @@ public:
 		eVType(VTY_CONST), iVectorLength(0), pData(NULL) {Init(iNLen, tIniVal);}
 	CMatlibVector(CMatlibVector<T>& vecI);
 	CMatlibVector(const CMatlibVector<T>& vecI);
-	virtual ~CMatlibVector() {if (pData != NULL) delete[] pData;}
+	virtual ~CMatlibVector() {if (pData != NULL) {delete[] pData; pData = NULL;}}
 
 	CMatlibVector(const CMatlibVector<CReal>& fvReal, const CMatlibVector<CReal>& fvImag) :
 		eVType(VTY_CONST/*VTY_TEMP*/), iVectorLength(fvReal.GetSize()), pData(NULL)
@@ -436,7 +436,10 @@ void CMatlibVector<T>::Init(const int iIniLen, const T tIniVal)
 	if (iVectorLength > 0)
 	{
 		if (pData != NULL)
+		{
 			delete[] pData;
+			pData = NULL;
+		}
 
 		pData = new T[iVectorLength];
 

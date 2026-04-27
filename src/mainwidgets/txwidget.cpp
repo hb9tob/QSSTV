@@ -795,7 +795,11 @@ void txWidget::changeTransmissionMode(int rxtxMode)
 void txWidget::slotProfileChanged(int i)
 {
   drmProfileConfigPtr->getDRMParams(i,drmParams);
+  drmParams.callsign=myCallsign;
   setParams();
+  imageViewerPtr->clearCompressedData();
+  txFunctionsPtr->forgetTxFileName();
+  applyTemplate();
 }
 
 void txWidget::reloadProfiles()
