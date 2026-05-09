@@ -547,10 +547,10 @@ isEmpty(PREFIX) {
     }
 target.path = $$PREFIX/bin
 
-shortcutfiles.files =qsstv.desktop
+shortcutfiles.files = $$PWD/../qsstv.desktop
 shortcutfiles.path = $$PREFIX/share/applications/
-data.files += icons/qsstv.png
-data.path=$$PREFIX/share/icons/hicolor/128x128/apps/
+data.files += $$PWD/icons/qsstv.png
+data.path = $$PREFIX/share/icons/hicolor/128x128/apps/
 
 
 
@@ -604,6 +604,9 @@ DISTFILES += \
 
 
 INSTALLS += target
+unix:!macx {
+  INSTALLS += shortcutfiles data
+}
 
 win32 {
   LIBS += -lportaudio \

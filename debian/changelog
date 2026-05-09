@@ -1,3 +1,17 @@
+qsstv (9.5.14-2) unstable; urgency=medium
+
+  * Install qsstv.desktop (/usr/share/applications) and qsstv.png icon
+    (/usr/share/icons/hicolor/128x128/apps) so the application appears
+    in the desktop menu after installation. Add shortcutfiles + data
+    INSTALLS targets to qsstv.pro (Linux only, fix relative paths
+    using $$PWD).
+  * arm64 build now bundles Hamlib master (5.0.0~git) under
+    /usr/lib/qsstv to support recent transceivers (FTX-1, IC-905, …).
+  * Port to Hamlib v5 API: HAMLIB_RIGPORT/HAMLIB_PTTPORT accessors
+    instead of the now-opaque rig->state.{rig,ptt}port.
+
+ -- HB9TOB <hb9tob@hb9tob.ch>  Sat, 09 May 2026 19:30:00 +0200
+
 qsstv (9.5.14-1) unstable; urgency=medium
 
   * Fix analog SSTV image resize broken when DRM AVIF codec is selected
